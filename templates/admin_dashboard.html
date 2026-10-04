@@ -27,8 +27,14 @@
     <a href="{{ url_for('admin_users') }}" class="nav-item">
         <span>👥</span> Управление пользователями
     </a>
+    <a href="{{ url_for('admin_import_mappings') }}" class="nav-item">
+        <span>⚙️</span> Настройки импорта
+    </a>
+    <a href="{{ url_for('admin_import_excel') }}" class="nav-item">
+        <span>📥</span> Импорт Excel
+    </a>
     <a href="{{ url_for('admin_upload_excel') }}" class="nav-item">
-        <span>📊</span> Загрузить Excel с заказами
+        <span>📊</span> Загрузить Excel с заказами (старый)
     </a>
     <a href="{{ url_for('admin_orders') }}" class="nav-item">
         <span>📋</span> Все заказы и фото

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Импорт Excel{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Импорт данных из Excel</h1>
+    <a href="{{ url_for('admin_import_mappings') }}" class="btn btn-secondary">Настроить маппинги</a>
+</div>
+
+<div class="card">
+    <h2>Загрузить файл</h2>
+    <form method="post" enctype="multipart/form-data" class="form-grid">
+        <div class="form-group full-width">
+            <label for="mapping_id">Маппинг *</label>
+            <select id="mapping_id" name="mapping_id" required>
+                <option value="">Выберите маппинг</option>
+                {% for m in mappings %}
+                <option value="{{ m.id }}">{{ m.name }} ({{ m.type }}) — ID: {{ m.id_column }}{% if m.fio_column %}, ФИО: {{ m.fio_column }}{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group full-width">
+            <label for="excel_file">Файл Excel (.xlsx, .xls) *</label>
+            <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Импортировать</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Как это работает</h2>
+    <ol>
+        <li><strong>Создайте маппинг</strong> для каждого типа файла (Заказы / Жалобы)</li>
+        <li><strong>Укажите колонки:</strong>
+            <ul>
+                <li><strong>ID обращения</strong> — общая колонка для связи (обязательна)</li>
+                <li><strong>ФИО</strong> — только для заказов, для поиска пользователя</li>
+                <li><strong>Номер заказа</strong> — только для заказов</li>
+                <li><strong>Дополнительные поля</strong> — любые колонки из файла, которые нужно сохранить</li>
+            </ul>
+        </li>
+        <li><strong>Сначала загрузите файл заказов</strong> — создадутся заказы с external_id</li>
+        <li><strong>Потом загрузите файл жалоб</strong> — они привяжутся к заказам по external_id</li>
+    </ol>
+    
+    <h3>Поля для жалоб (type=complaints)</h3>
+    <p>В дополнительных полях укажите соответствие для сохранения в заказ:</p>
+    <ul>
+        <li><code>complaint_text</code> → текст жалобы</li>
+        <li><code>complaint_status</code> → статус жалобы</li>
+        <li><code>complaint_date</code> → дата жалобы (ISO формат)</li>
+    </ul>
+</div>
+{% endblock %}

@@ -17,7 +17,7 @@ from config import (
     UPLOAD_FOLDER, MAX_CONTENT_LENGTH, ALLOWED_EXTENSIONS,
     RATELIMIT_STORAGE_URL, FLASK_DEBUG
 )
-from models import db, User, Order, Photo, generate_token
+from models import db, User, Order, Photo, generate_token, ImportMapping
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -289,6 +289,235 @@ def admin_upload_excel():
         return redirect(url_for('admin_upload_excel'))
     
     return render_template('admin_upload_excel.html')
+
+# Import Mappings
+@app.route('/admin/import_mappings', methods=['GET', 'POST'])
+@admin_required
+def admin_import_mappings():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        type_ = request.form.get('type', '').strip()
+        id_column = request.form.get('id_column', '').strip()
+        fio_column = request.form.get('fio_column', '').strip()
+        order_number_column = request.form.get('order_number_column', '').strip()
+        
+        # Parse field mapping JSON
+        field_mapping = {}
+        keys = request.form.getlist('mapping_key[]')
+        values = request.form.getlist('mapping_value[]')
+        for k, v in zip(keys, values):
+            if k.strip() and v.strip():
+                field_mapping[k.strip()] = v.strip()
+        
+        if not name or not type_ or not id_column:
+            flash('Заполните обязательные поля: название, тип, колонка ID', 'error')
+        else:
+            try:
+                mapping = ImportMapping(
+                    name=name,
+                    type=type_,
+                    id_column=id_column,
+                    fio_column=fio_column or None,
+                    order_number_column=order_number_column or None,
+                    field_mapping=field_mapping
+                )
+                db.session.add(mapping)
+                db.session.commit()
+                flash('Маппинг создан', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Ошибка: {e}', 'error')
+        return redirect(url_for('admin_import_mappings'))
+    
+    mappings = ImportMapping.query.order_by(ImportMapping.created_at.desc()).all()
+    return render_template('admin_import_mappings.html', mappings=mappings)
+
+
+@app.route('/admin/import_mappings/delete/<int:mapping_id>', methods=['POST'])
+@admin_required
+def admin_delete_import_mapping(mapping_id):
+    mapping = ImportMapping.query.get_or_404(mapping_id)
+    db.session.delete(mapping)
+    db.session.commit()
+    flash('Маппинг удалён', 'success')
+    return redirect(url_for('admin_import_mappings'))
+
+
+@app.route('/admin/import_excel', methods=['GET', 'POST'])
+@admin_required
+def admin_import_excel():
+    mappings = ImportMapping.query.order_by(ImportMapping.type, ImportMapping.name).all()
+    
+    if request.method == 'POST':
+        mapping_id = request.form.get('mapping_id', type=int)
+        file = request.files.get('excel_file')
+        
+        if not mapping_id:
+            flash('Выберите маппинг', 'error')
+            return redirect(url_for('admin_import_excel'))
+        
+        if not file or file.filename == '':
+            flash('Файл не выбран', 'error')
+            return redirect(url_for('admin_import_excel'))
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            flash('Неверный формат файла. Нужен .xlsx или .xls', 'error')
+            return redirect(url_for('admin_import_excel'))
+        
+        mapping = ImportMapping.query.get_or_404(mapping_id)
+        
+        try:
+            workbook = openpyxl.load_workbook(file)
+            sheet = workbook.active
+            
+            headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+            headers = [str(h).strip() if h else '' for h in headers]
+            
+            # Find column indices
+            id_col_idx = None
+            for idx, header in enumerate(headers):
+                if header.lower() == mapping.id_column.lower():
+                    id_col_idx = idx
+                    break
+            
+            if id_col_idx is None:
+                flash(f'Колонка ID "{mapping.id_column}" не найдена в файле. Доступные: {headers}', 'error')
+                return redirect(url_for('admin_import_excel'))
+            
+            fio_col_idx = None
+            if mapping.fio_column:
+                for idx, header in enumerate(headers):
+                    if header.lower() == mapping.fio_column.lower():
+                        fio_col_idx = idx
+                        break
+            
+            order_num_col_idx = None
+            if mapping.order_number_column:
+                for idx, header in enumerate(headers):
+                    if header.lower() == mapping.order_number_column.lower():
+                        order_num_col_idx = idx
+                        break
+            
+            # Build field mapping indices
+            field_indices = {}
+            for file_col, model_field in mapping.field_mapping.items():
+                for idx, header in enumerate(headers):
+                    if header.lower() == file_col.lower():
+                        field_indices[model_field] = idx
+                        break
+            
+            users_map = {u.fio.strip().lower(): u.id for u in User.query.all()}
+            
+            imported = 0
+            updated = 0
+            skipped = 0
+            errors = []
+            
+            start_row = 2 if mapping.skip_first_row else 1
+            
+            for row_idx, row in enumerate(sheet.iter_rows(min_row=start_row, values_only=True), start=start_row):
+                if not any(row):
+                    continue
+                
+                ext_id = row[id_col_idx]
+                if not ext_id:
+                    skipped += 1
+                    errors.append(f'Строка {row_idx}: пустой ID')
+                    continue
+                
+                ext_id = str(ext_id).strip()
+                
+                if mapping.type == 'orders':
+                    # Import orders
+                    fio_value = row[fio_col_idx] if fio_col_idx is not None else None
+                    if not fio_value:
+                        skipped += 1
+                        errors.append(f'Строка {row_idx}: пустое ФИО')
+                        continue
+                    
+                    fio_normalized = str(fio_value).strip().lower()
+                    user_id = users_map.get(fio_normalized)
+                    if not user_id:
+                        skipped += 1
+                        errors.append(f'Строка {row_idx}: пользователь "{fio_value}" не найден')
+                        continue
+                    
+                    order_number = row[order_num_col_idx] if order_num_col_idx is not None else f'Заказ #{row_idx}'
+                    if not order_number:
+                        order_number = f'Заказ #{row_idx}'
+                    
+                    # Check if order with this external_id exists
+                    order = Order.query.filter_by(external_id=ext_id).first()
+                    
+                    description_parts = []
+                    for model_field, col_idx in field_indices.items():
+                        value = row[col_idx]
+                        if value is not None:
+                            description_parts.append(f'{model_field}: {value}')
+                    description = '; '.join(description_parts)
+                    
+                    if order:
+                        order.user_id = user_id
+                        order.order_number = order_number
+                        order.description = description
+                        order.external_id = ext_id
+                        updated += 1
+                    else:
+                        order = Order(
+                            user_id=user_id,
+                            order_number=order_number,
+                            description=description,
+                            external_id=ext_id
+                        )
+                        db.session.add(order)
+                        imported += 1
+                
+                elif mapping.type == 'complaints':
+                    # Import complaints - link to existing order by external_id
+                    order = Order.query.filter_by(external_id=ext_id).first()
+                    if not order:
+                        skipped += 1
+                        errors.append(f'Строка {row_idx}: заказ с ID "{ext_id}" не найден')
+                        continue
+                    
+                    # Update complaint fields
+                    for model_field, col_idx in field_indices.items():
+                        value = row[col_idx]
+                        if value is not None:
+                            if model_field == 'complaint_text':
+                                order.complaint_text = str(value)
+                            elif model_field == 'complaint_status':
+                                order.complaint_status = str(value)
+                            elif model_field == 'complaint_date':
+                                if isinstance(value, str):
+                                    try:
+                                        from datetime import datetime
+                                        order.complaint_date = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                                    except:
+                                        pass
+                                elif hasattr(value, 'isoformat'):
+                                    order.complaint_date = value
+                    
+                    updated += 1
+            
+            db.session.commit()
+            
+            msg = f'Импорт завершён. Создано: {imported}, обновлено: {updated}, пропущено: {skipped}.'
+            if errors:
+                msg += ' Ошибки: ' + '; '.join(errors[:5])
+                if len(errors) > 5:
+                    msg += f' ... и ещё {len(errors) - 5} ошибок.'
+            flash(msg, 'success' if (imported + updated) > 0 else 'warning')
+            app.logger.info(f'Excel import ({mapping.type}): {imported} created, {updated} updated, {skipped} skipped')
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Ошибка при обработке файла: {str(e)}', 'error')
+            app.logger.error(f'Excel import error: {e}')
+        
+        return redirect(url_for('admin_import_excel'))
+    
+    return render_template('admin_import_excel.html', mappings=mappings)
 
 @app.route('/admin/orders')
 @admin_required
