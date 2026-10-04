@@ -59,6 +59,11 @@ if not app.debug:
     app.logger.setLevel(logging.INFO)
     app.logger.info('GL_JB startup')
 
+# Create database tables on startup
+with app.app_context():
+    db.create_all()
+    app.logger.info('Database tables created/verified')
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
