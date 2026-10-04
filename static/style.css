@@ -562,6 +562,10 @@ body {
     color: var(--text-muted);
 }
 
+.mapping-row .btn {
+    flex-shrink: 0;
+}
+
 .help-text {
     font-size: 0.85rem;
     color: var(--text-muted);
@@ -624,4 +628,49 @@ body {
     box-shadow: var(--shadow);
     max-width: 400px;
     margin: 4rem auto;
+}
+
+/* Centering fixes */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing);
+    flex-wrap: wrap;
+    gap: var(--spacing);
+}
+
+.card {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.table {
+    table-layout: auto;
+    width: 100%;
+}
+
+.table th,
+.table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.table th:last-child,
+.table td:last-child {
+    max-width: none;
+    white-space: normal;
+}
+
+@media (max-width: 900px) {
+    .table th:nth-child(n+5),
+    .table td:nth-child(n+5) {
+        display: none;
+    }
+}
+
+.form-grid > .form-group:last-child {
+    margin-bottom: 0;
 }
