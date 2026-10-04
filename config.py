@@ -28,10 +28,11 @@ RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
 FLASK_ENV = os.environ.get('FLASK_ENV', 'production')
 FLASK_DEBUG = os.environ.get('FLASK_DEBUG', '0') == '1'
 
-# Email settings
-MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
-MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', '1') == '1'
+# Email settings (настроено для mail.ru по умолчанию)
+MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.mail.ru')
+MAIL_PORT = int(os.environ.get('MAIL_PORT', 465))
+MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', '0') == '1'
+MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', '1') == '1'
 MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
 MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
 MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', MAIL_USERNAME)
