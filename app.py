@@ -629,7 +629,10 @@ def admin_export_excel():
 def unified_login():
     if request.method == 'POST':
         token = request.form.get('token', '').strip()
-        password = request.form.get('password', '').strip()
+        
+        if not token:
+            flash('Введите токен', 'error')
+            return render_template('unified_login.html')
         
         # Суперадмин по токену
         if token == ADMIN_TOKEN:
@@ -637,26 +640,16 @@ def unified_login():
             app.logger.info(f'Superadmin token login from {get_remote_address()}')
             return redirect(url_for('admin_dashboard'))
         
-        # Админ по паролю
-        if password == ADMIN_PASSWORD:
-            session['is_admin'] = True
-            app.logger.info(f'Admin password login from {get_remote_address()}')
-            return redirect(url_for('admin_dashboard'))
-        
         # Обычный пользователь по токену
-        if token:
-            user = User.query.filter_by(token=token).first()
-            if user:
-                session['user_id'] = user.id
-                session['user_fio'] = user.fio
-                app.logger.info(f'User login: {user.fio} from {get_remote_address()}')
-                return redirect(url_for('user_orders'))
-            else:
-                flash('Неверный токен', 'error')
-                app.logger.warning(f'Failed login with token {token} from {get_remote_address()}')
-        
-        if not token and not password:
-            flash('Введите токен или пароль', 'error')
+        user = User.query.filter_by(token=token).first()
+        if user:
+            session['user_id'] = user.id
+            session['user_fio'] = user.fio
+            app.logger.info(f'User login: {user.fio} from {get_remote_address()}')
+            return redirect(url_for('user_orders'))
+        else:
+            flash('Неверный токен', 'error')
+            app.logger.warning(f'Failed login with token {token} from {get_remote_address()}')
     
     return render_template('unified_login.html')
 
