@@ -61,8 +61,16 @@ if not app.debug:
 
 # Create database tables on startup
 with app.app_context():
-    db.create_all()
-    app.logger.info('Database tables created/verified')
+    try:
+        db.create_all()
+        app.logger.info('Database tables created/verified')
+        # Verify tables exist
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        app.logger.info(f'Tables in database: {tables}')
+    except Exception as e:
+        app.logger.error(f'Database initialization error: {e}')
 
 def allowed_file(filename):
     return '.' in filename and \
