@@ -216,7 +216,7 @@ body {
 
 .admin-nav {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.75rem;
 }
 
@@ -231,10 +231,13 @@ body {
     text-decoration: none;
     color: var(--text);
     transition: transform 0.2s, box-shadow 0.2s;
+    flex: 1;
+    min-width: 200px;
+    justify-content: center;
 }
 
 .nav-item:hover {
-    transform: translateX(4px);
+    transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
