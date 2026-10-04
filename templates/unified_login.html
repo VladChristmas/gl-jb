@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+<div class="login-box">
+    <h1>Вход в систему</h1>
+    <p class="subtitle">Введите токен пользователя, токен суперадмина или пароль админа</p>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+            <label for="token">Токен (пользователь / суперадмин)</label>
+            <input type="text" id="token" name="token" placeholder="Вставьте токен сюда" autocomplete="off">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Или пароль админа</label>
+            <input type="password" id="password" name="password" placeholder="Пароль администратора" autocomplete="current-password">
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-full">Войти</button>
+    </form>
+    
+    <div class="login-hints">
+        <details>
+            <summary>Как войти?</summary>
+            <ul>
+                <li><strong>Суперадмин:</strong> вставьте токен суперадмина в поле "Токен"</li>
+                <li><strong>Админ:</strong> введите пароль админа в поле "Пароль"</li>
+                <li><strong>Пользователь:</strong> вставьте свой персональный токен в поле "Токен"</li>
+            </ul>
+            <p>Система сама определит вашу роль и перенаправит в нужный раздел.</p>
+        </details>
+    </div>
+</div>
+{% endblock %}

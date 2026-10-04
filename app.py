@@ -77,7 +77,7 @@ def user_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('user_id'):
-            return redirect(url_for('user_login'))
+            return redirect(url_for('unified_login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -384,30 +384,44 @@ def admin_export_excel():
 
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("10 per minute")
-def user_login():
+def unified_login():
     if request.method == 'POST':
         token = request.form.get('token', '').strip()
-        if not token:
-            flash('Введите токен', 'error')
-            return render_template('user_login.html')
+        password = request.form.get('password', '').strip()
         
-        user = User.query.filter_by(token=token).first()
+        # Суперадмин по токену
+        if token == ADMIN_TOKEN:
+            session['is_admin'] = True
+            app.logger.info(f'Superadmin token login from {get_remote_address()}')
+            return redirect(url_for('admin_dashboard'))
         
-        if user:
-            session['user_id'] = user.id
-            session['user_fio'] = user.fio
-            app.logger.info(f'User login: {user.fio} from {get_remote_address()}')
-            return redirect(url_for('user_orders'))
-        else:
-            flash('Неверный токен', 'error')
-            app.logger.warning(f'Failed user login with token {token} from {get_remote_address()}')
+        # Админ по паролю
+        if password == ADMIN_PASSWORD:
+            session['is_admin'] = True
+            app.logger.info(f'Admin password login from {get_remote_address()}')
+            return redirect(url_for('admin_dashboard'))
+        
+        # Обычный пользователь по токену
+        if token:
+            user = User.query.filter_by(token=token).first()
+            if user:
+                session['user_id'] = user.id
+                session['user_fio'] = user.fio
+                app.logger.info(f'User login: {user.fio} from {get_remote_address()}')
+                return redirect(url_for('user_orders'))
+            else:
+                flash('Неверный токен', 'error')
+                app.logger.warning(f'Failed login with token {token} from {get_remote_address()}')
+        
+        if not token and not password:
+            flash('Введите токен или пароль', 'error')
     
-    return render_template('user_login.html')
+    return render_template('unified_login.html')
 
 @app.route('/logout')
 def user_logout():
     session.clear()
-    return redirect(url_for('user_login'))
+    return redirect(url_for('unified_login'))
 
 @app.route('/orders')
 @user_required
@@ -522,7 +536,7 @@ def uploaded_file(filename):
 
 @app.route('/')
 def index():
-    return redirect(url_for('user_login'))
+    return redirect(url_for('unified_login'))
 
 @app.route('/health')
 def health_check():
