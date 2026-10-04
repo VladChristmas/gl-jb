@@ -15,13 +15,16 @@ import openpyxl
 from config import (
     SECRET_KEY, ADMIN_PASSWORD, ADMIN_TOKEN, DATABASE_PATH,
     UPLOAD_FOLDER, MAX_CONTENT_LENGTH, ALLOWED_EXTENSIONS,
-    RATELIMIT_STORAGE_URL, FLASK_DEBUG
+    RATELIMIT_STORAGE_URL, FLASK_DEBUG,
+    MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, MAIL_USERNAME, MAIL_PASSWORD,
+    MAIL_DEFAULT_SENDER, MAIL_ADMIN_RECIPIENTS
 )
 from models import db, User, Order, Photo, generate_token, ImportMapping
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -30,11 +33,20 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATABASE_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Mail config
+app.config['MAIL_SERVER'] = MAIL_SERVER
+app.config['MAIL_PORT'] = MAIL_PORT
+app.config['MAIL_USE_TLS'] = MAIL_USE_TLS
+app.config['MAIL_USERNAME'] = MAIL_USERNAME
+app.config['MAIL_PASSWORD'] = MAIL_PASSWORD
+app.config['MAIL_DEFAULT_SENDER'] = MAIL_DEFAULT_SENDER
+
 Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
 
 db.init_app(app)
 migrate = Migrate(app, db)
 csrf = CSRFProtect(app)
+mail = Mail(app)
 
 limiter = Limiter(
     get_remote_address,
@@ -42,6 +54,89 @@ limiter = Limiter(
     storage_uri=RATELIMIT_STORAGE_URL,
     default_limits=["200 per day", "50 per hour"]
 )
+
+# Email functions
+def send_email(subject, recipients, html_body, text_body=None, attachments=None):
+    """Send email with optional attachments."""
+    if not MAIL_USERNAME or not MAIL_PASSWORD:
+        app.logger.warning('Email not configured, skipping send')
+        return False
+    
+    try:
+        msg = Message(
+            subject=subject,
+            recipients=recipients,
+            sender=MAIL_DEFAULT_SENDER,
+            html=html_body,
+            body=text_body or ''
+        )
+        if attachments:
+            for filename, content, mimetype in attachments:
+                msg.attach(filename, mimetype, content)
+        mail.send(msg)
+        app.logger.info(f'Email sent to {recipients}: {subject}')
+        return True
+    except Exception as e:
+        app.logger.error(f'Failed to send email: {e}')
+        return False
+
+
+def send_order_completion_email(order, user):
+    """Send email when order is completed with photos."""
+    if not MAIL_ADMIN_RECIPIENTS:
+        return False
+    
+    photos = Photo.query.filter_by(order_id=order.id).all()
+    
+    html = render_template('emails/order_completed.html', 
+                           order=order, user=user, photos=photos)
+    text = f'''
+Заказ подтвержден: {order.order_number}
+Клиент: {user.fio}
+Описание: {order.description}
+Фото: {len(photos)} шт.
+Дата: {order.created_at}
+'''
+    
+    attachments = []
+    for photo in photos:
+        filepath = os.path.join(UPLOAD_FOLDER, photo.filename)
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                attachments.append((
+                    photo.original_filename or photo.filename,
+                    f.read(),
+                    'image/jpeg'
+                ))
+    
+    return send_email(
+        subject=f'✅ Заказ #{order.order_number} подтвержден — {len(photos)} фото',
+        recipients=MAIL_ADMIN_RECIPIENTS,
+        html_body=html,
+        text_body=text,
+        attachments=attachments if attachments else None
+    )
+
+
+def send_order_created_email(order, user):
+    """Send notification when new order is created."""
+    if not MAIL_ADMIN_RECIPIENTS:
+        return False
+    
+    html = render_template('emails/order_created.html', order=order, user=user)
+    text = f'''
+Новый заказ: {order.order_number}
+Клиент: {user.fio}
+Описание: {order.description}
+Дата: {order.created_at}
+'''
+    
+    return send_email(
+        subject=f'📦 Новый заказ #{order.order_number}',
+        recipients=MAIL_ADMIN_RECIPIENTS,
+        html_body=html,
+        text_body=text
+    )
 
 if not app.debug:
     log_dir = Path('logs')
@@ -585,6 +680,24 @@ def admin_orders():
                            user_filter=user_filter,
                            photo_filter=photo_filter)
 
+
+@app.route('/admin/orders/send_email/<int:order_id>', methods=['POST'])
+@admin_required
+def admin_send_order_email(order_id):
+    order = Order.query.get_or_404(order_id)
+    user = User.query.get(order.user_id)
+    
+    if not user:
+        flash('Пользователь не найден', 'error')
+        return redirect(url_for('admin_orders'))
+    
+    if send_order_completion_email(order, user):
+        flash('Email отправлен администраторам', 'success')
+    else:
+        flash('Ошибка отправки (проверьте настройки почты)', 'error')
+    
+    return redirect(url_for('admin_orders'))
+
 @app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
 @admin_required
 def admin_delete_order(order_id):
@@ -743,6 +856,11 @@ def upload_photo(order_id):
     photo = Photo(order_id=order_id, filename=filename, original_filename=original_filename)
     db.session.add(photo)
     db.session.commit()
+    
+    # Send email notification to admins
+    user = User.query.get(user_id)
+    if user:
+        send_order_completion_email(order, user)
     
     flash('Фото загружено', 'success')
     app.logger.info(f'Photo uploaded: {filename} for order {order_id} by user {user_id}')
