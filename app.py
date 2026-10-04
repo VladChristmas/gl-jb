@@ -542,6 +542,7 @@ def admin_orders():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '', type=str)
     user_filter = request.args.get('user_id', '', type=str)
+    photo_filter = request.args.get('photo_filter', '', type=str)
     
     query = db.session.query(Order, User).join(User, Order.user_id == User.id)
     
@@ -556,6 +557,11 @@ def admin_orders():
     
     if user_filter:
         query = query.filter(User.id == user_filter)
+    
+    if photo_filter == 'with_photos':
+        query = query.filter(Order.photos.any())
+    elif photo_filter == 'without_photos':
+        query = query.filter(~Order.photos.any())
     
     pagination = query.order_by(Order.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
@@ -576,7 +582,8 @@ def admin_orders():
                            pagination=pagination, 
                            search=search,
                            users=users,
-                           user_filter=user_filter)
+                           user_filter=user_filter,
+                           photo_filter=photo_filter)
 
 @app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
 @admin_required
