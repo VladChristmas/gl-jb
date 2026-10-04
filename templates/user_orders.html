@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Мои заказы{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Мои заказы</h1>
+    <div class="user-info">
+        <span>{{ session.user_fio }}</span>
+        <a href="{{ url_for('user_logout') }}" class="btn btn-secondary btn-sm">Выйти</a>
+    </div>
+</header>
+
+<form method="get" class="form-inline" style="margin-bottom: 1rem;">
+    <div class="form-group" style="flex: 1;">
+        <label for="search">Поиск</label>
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или описание">
+    </div>
+    <button type="submit" class="btn btn-secondary">Найти</button>
+    {% if search %}
+    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Сбросить</a>
+    {% endif %}
+</form>
+
+{% if orders %}
+    <div class="orders-list">
+        {% for order in orders %}
+        <div class="order-card">
+            <div class="order-header">
+                <h3>{{ order.order_number }}</h3>
+                <span class="badge badge-{{ 'success' if order.photos_count > 0 else 'warning' }}">
+                    {{ order.photos_count }} фото
+                </span>
+            </div>
+            <div class="order-description">{{ order.description }}</div>
+            <div class="order-actions">
+                <form method="post" action="{{ url_for('upload_photo', order_id=order.id) }}" enctype="multipart/form-data" class="upload-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="file" name="photo" accept="image/*" required capture="environment">
+                    <button type="submit" class="btn btn-primary btn-sm">Загрузить фото</button>
+                </form>
+                {% if order.photos_count > 0 %}
+                <a href="{{ url_for('order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <nav class="pagination">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('user_orders', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
+        {% endif %}
+        <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+            <a href="{{ url_for('user_orders', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <p>У вас пока нет заказов</p>
+    </div>
+{% endif %}
+{% endblock %}

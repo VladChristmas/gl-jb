@@ -1,0 +1,30 @@
+[Unit]
+Description=GL_JB Flask Application
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/gl_jb
+Environment=PATH=/opt/gl_jb/venv/bin
+EnvironmentFile=/opt/gl_jb/.env
+ExecStart=/opt/gl_jb/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 --access-logfile /var/log/gl_jb/access.log --error-logfile /var/log/gl_jb/error.log app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=on-failure
+RestartSec=5
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gl_jb/uploads /opt/gl_jb/logs /opt/gl_jb/database.db
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

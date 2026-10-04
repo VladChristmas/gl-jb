@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Панель администратора</h1>
+    <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary">Выйти</a>
+</header>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ users_count }}</div>
+        <div class="stat-label">Пользователей</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ orders_count }}</div>
+        <div class="stat-label">Заказов</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ photos_count }}</div>
+        <div class="stat-label">Фото</div>
+    </div>
+</div>
+
+<nav class="admin-nav">
+    <a href="{{ url_for('admin_users') }}" class="nav-item">
+        <span>👥</span> Управление пользователями
+    </a>
+    <a href="{{ url_for('admin_upload_excel') }}" class="nav-item">
+        <span>📊</span> Загрузить Excel с заказами
+    </a>
+    <a href="{{ url_for('admin_orders') }}" class="nav-item">
+        <span>📋</span> Все заказы и фото
+    </a>
+    <a href="{{ url_for('admin_export_excel') }}" class="nav-item">
+        <span>📤</span> Экспорт заказов в Excel
+    </a>
+</nav>
+{% endblock %}

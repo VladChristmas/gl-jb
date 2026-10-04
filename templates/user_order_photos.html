@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Фото заказа #{{ order.id }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Фото заказа #{{ order.id }}</h1>
+    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Назад к заказам</a>
+</header>
+
+<div class="order-info">
+    <p><strong>Номер:</strong> {{ order.order_number }}</p>
+    <p><strong>Описание:</strong> {{ order.description }}</p>
+</div>
+
+{% if photos %}
+    <div class="photos-grid">
+        {% for photo in photos %}
+        <div class="photo-item">
+            <a href="{{ url_for('uploaded_file', filename=photo.filename) }}" target="_blank">
+                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
+            </a>
+            <div class="photo-meta">
+                <p>{{ photo.original_filename }}</p>
+                <small>{{ photo.uploaded_at }}</small>
+                <form method="post" action="{{ url_for('delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirm('Удалить это фото?')" style="margin-top: 0.5rem;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Удалить фото</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Фото пока не загружены</p>
+    </div>
+{% endif %}
+{% endblock %}

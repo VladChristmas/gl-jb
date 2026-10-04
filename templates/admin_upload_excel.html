@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Загрузка Excel{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Загрузка заказов из Excel</h1>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+<div class="card">
+    <h2>Инструкция</h2>
+    <ul>
+        <li>Файл должен быть в формате <strong>.xlsx</strong> или <strong>.xls</strong></li>
+        <li>В файле должна быть колонка с ФИО (названия: "ФИО", "fio", "ФИО клиента", "Фамилия Имя Отчество")</li>
+        <li>Остальные колонки будут сохранены в описании заказа</li>
+        <li>Заказы привяжутся к пользователям по ФИО (пользователи должны быть созданы заранее)</li>
+        <li>Дубликаты (один и тот же номер заказа для одного пользователя) будут пропущены</li>
+    </ul>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="form-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label for="excel_file">Выберите файл</label>
+        <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Загрузить</button>
+</form>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Вход в админку{% endblock %}
+
+{% block content %}
+<div class="login-box">
+    <h1>Админка</h1>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary">Войти паролем</button>
+    </form>
+    <p style="margin-top: 1rem; text-align: center;">
+        <a href="{{ url_for('admin_token_login') }}">Войти по токену суперадмина</a>
+    </p>
+</div>
+{% endblock %}

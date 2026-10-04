@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Управление пользователями</h1>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+<form method="post" class="form-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label for="fio">ФИО пользователя</label>
+        <input type="text" id="fio" name="fio" required placeholder="Иванов Иван Иванович">
+    </div>
+    <button type="submit" class="btn btn-primary">Создать</button>
+</form>
+
+<form method="get" class="form-inline" style="margin-bottom: 1rem;">
+    <div class="form-group">
+        <label for="search">Поиск</label>
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Поиск по ФИО">
+    </div>
+    <button type="submit" class="btn btn-secondary">Найти</button>
+    {% if search %}
+    <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">Сбросить</a>
+    {% endif %}
+</form>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>ФИО</th>
+            <th>Токен</th>
+            <th>Создан</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.fio }}</td>
+            <td><code>{{ user.token }}</code></td>
+            <td>{{ user.created_at }}</td>
+            <td>
+                <form method="post" action="{{ url_for('admin_regenerate_token', user_id=user.id) }}" class="d-inline" onsubmit="return confirm('Перегенерировать токен для {{ user.fio }}? Старый токен перестанет работать.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-secondary btn-sm">Новый токен</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" class="d-inline" onsubmit="return confirm('Удалить пользователя {{ user.fio }}? Это также удалит все его заказы и фото.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4" class="text-center">Пользователей нет</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pagination.pages > 1 %}
+<nav class="pagination">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('admin_users', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
+    {% endif %}
+    <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+        <a href="{{ url_for('admin_users', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endblock %}
