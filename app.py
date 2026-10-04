@@ -131,10 +131,27 @@ def admin_dashboard():
     users_count = User.query.count()
     orders_count = Order.query.count()
     photos_count = Photo.query.count()
+    
+    # Orders with photos (confirmed)
+    orders_with_photos = db.session.query(Order.id).join(Photo, Order.id == Photo.order_id).distinct().count()
+    
+    # Upload folder info
+    upload_folder = os.path.abspath(UPLOAD_FOLDER)
+    upload_size = 0
+    if os.path.exists(upload_folder):
+        for root, dirs, files in os.walk(upload_folder):
+            for f in files:
+                fp = os.path.join(root, f)
+                if os.path.isfile(fp):
+                    upload_size += os.path.getsize(fp)
+    
     return render_template('admin_dashboard.html',
                            users_count=users_count,
                            orders_count=orders_count,
-                           photos_count=photos_count)
+                           photos_count=photos_count,
+                           orders_with_photos=orders_with_photos,
+                           upload_folder=upload_folder,
+                           upload_size=upload_size)
 
 @app.route('/admin/users', methods=['GET', 'POST'])
 @admin_required
