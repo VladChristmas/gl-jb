@@ -25,4 +25,4 @@ EXPOSE 5000
 
 # Use $PORT for Render compatibility (defaults to 5000)
 # Use wsgi:app since app is a factory pattern
-CMD gunicorn --bind 0.0.0.0:${PORT} --workers 4 --timeout 120 wsgi:app
+CMD gunicorn --bind 0.0.0.0:${PORT} --workers 2 --timeout 120 wsgi:app

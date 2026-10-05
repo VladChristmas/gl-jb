@@ -1,10 +1,16 @@
 from typing import Optional, List, Tuple
-from sqlalchemy import or_
+from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload, selectinload
+import time
 from app.models.order import Order
 from app.models.user import User
 from app.models.photo import Photo
 from app.extensions import db
 from app.services.user_service import UserService
+
+# Simple in-memory cache for dashboard stats
+_stats_cache = {'data': None, 'ts': 0}
+_STATS_TTL = 60  # seconds
 
 
 class OrderService:
@@ -18,11 +24,12 @@ class OrderService:
         )
         db.session.add(order)
         db.session.commit()
+        OrderService.invalidate_stats_cache()
         return order
 
     @staticmethod
     def get_order_by_id(order_id: int) -> Optional[Order]:
-        return Order.query.get(order_id)
+        return db.session.get(Order, order_id)
 
     @staticmethod
     def get_order_by_external_id(external_id: str) -> Optional[Order]:
@@ -63,6 +70,13 @@ class OrderService:
         elif photo_filter == 'without_photos':
             query = query.filter(~Order.photos.any())
 
+        # Pre-fetch photo counts to avoid N+1
+        photo_counts = dict(
+            db.session.query(Photo.order_id, func.count(Photo.id))
+            .group_by(Photo.order_id)
+            .all()
+        )
+
         pagination = query.order_by(Order.created_at.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
@@ -72,14 +86,14 @@ class OrderService:
             orders_with_users.append({
                 'order': order,
                 'user': user,
-                'photos_count': len(order.photos)
+                'photos_count': photo_counts.get(order.id, 0)
             })
 
         return pagination, orders_with_users
 
     @staticmethod
     def update_order(order_id: int, order_number: str, description: str) -> Optional[Order]:
-        order = Order.query.get(order_id)
+        order = db.session.get(Order, order_id)
         if order:
             order.order_number = order_number.strip()
             order.description = description.strip()
@@ -88,25 +102,38 @@ class OrderService:
 
     @staticmethod
     def delete_order(order_id: int) -> bool:
-        order = Order.query.get(order_id)
+        order = db.session.get(Order, order_id)
         if order:
             db.session.delete(order)
             db.session.commit()
+            OrderService.invalidate_stats_cache()
             return True
         return False
 
     @staticmethod
     def get_dashboard_stats() -> dict:
+        now = time.time()
+        if _stats_cache['data'] and (now - _stats_cache['ts']) < _STATS_TTL:
+            return _stats_cache['data']
+
         users_count = User.query.count()
         orders_count = Order.query.count()
         photos_count = Photo.query.count()
         orders_with_photos = db.session.query(Order.id).join(Photo, Order.id == Photo.order_id).distinct().count()
-        return {
+        result = {
             'users_count': users_count,
             'orders_count': orders_count,
             'photos_count': photos_count,
             'orders_with_photos': orders_with_photos
         }
+        _stats_cache['data'] = result
+        _stats_cache['ts'] = now
+        return result
+
+    @staticmethod
+    def invalidate_stats_cache():
+        _stats_cache['data'] = None
+        _stats_cache['ts'] = 0
 
     @staticmethod
     def get_order_with_user(order_id: int) -> Optional[Tuple[Order, User]]:

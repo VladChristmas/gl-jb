@@ -848,3 +848,188 @@ body {
         display: none;
     }
 }
+
+/* ========== DARK THEME ========== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1d1d1f;
+        --card-bg: #2d2d2f;
+        --text: #f5f5f7;
+        --text-secondary: #a1a1a6;
+        --text-tertiary: #6e6e73;
+        --border: #424245;
+        --border-light: #38383a;
+        --primary: #2997ff;
+        --primary-hover: #0077ed;
+        --primary-pressed: #0060c7;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+        --shadow-lg: 0 12px 24px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .table th { background: #1d1d1f; }
+    .table tr:hover td { background: #2d2d2f; }
+    .table td code { background: #1d1d1f; color: #f5f5f7; }
+    .upload-form input[type="file"] { background: #1d1d1f; color: var(--text-secondary); }
+    .upload-form input[type="file"]:hover { background: #2d2d2f; }
+    .tag { background: #424245; color: #f5f5f7; }
+    .form-group input:disabled { background: #1d1d1f; }
+    .badge-success { color: #30d158; }
+    .badge-warning { color: #ff9f0a; }
+    .flash-success { color: #30d158; }
+    .flash-error { color: #ff453a; }
+    .flash-warning { color: #ff9f0a; }
+    .btn-secondary { background: #424245; color: #f5f5f7; }
+    .btn-secondary:hover { background: #555558; }
+    .stat-card, .card, .order-card, .login-box, .nav-item, .photo-item, .order-info {
+        background: var(--card-bg);
+        border-color: var(--border-light);
+    }
+    color-scheme: dark;
+}
+
+/* ========== SPINNER ========== */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+}
+
+.spinner-dark {
+    border-color: rgba(0, 0, 0, 0.15);
+    border-top-color: var(--primary);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.btn.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* ========== TOAST ========== */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.toast {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    box-shadow: var(--shadow-lg);
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: toastIn 0.3s var(--transition);
+    max-width: 360px;
+}
+
+.toast.toast-out {
+    animation: toastOut 0.3s var(--transition) forwards;
+}
+
+.toast-action {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.toast-action:hover {
+    text-decoration: underline;
+}
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(16px) scale(0.95); }
+}
+
+/* ========== SKELETON LOADING ========== */
+.skeleton {
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius-sm);
+}
+
+.skeleton-text {
+    height: 14px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+}
+
+.skeleton-text:last-child {
+    width: 60%;
+}
+
+.skeleton-card {
+    height: 120px;
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing);
+}
+
+.skeleton-stat {
+    height: 100px;
+    border-radius: var(--radius-lg);
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* ========== EMPTY STATE ========== */
+.empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--text-secondary);
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    opacity: 0.3;
+}
+
+.empty-state-title {
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.empty-state-text {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 320px;
+    margin: 0 auto;
+    line-height: 1.5;
+}

@@ -4,6 +4,11 @@ from app.extensions import db
 from app.utils.token import generate_token
 
 
+def _invalidate_stats():
+    from app.services.order_service import OrderService
+    OrderService.invalidate_stats_cache()
+
+
 class UserService:
     @staticmethod
     def create_user(fio: str) -> User:
@@ -11,11 +16,12 @@ class UserService:
         user = User(fio=fio.strip(), token=token)
         db.session.add(user)
         db.session.commit()
+        _invalidate_stats()
         return user
 
     @staticmethod
     def get_user_by_id(user_id: int) -> Optional[User]:
-        return User.query.get(user_id)
+        return db.session.get(User, user_id)
 
     @staticmethod
     def get_user_by_token(token: str) -> Optional[User]:
@@ -32,15 +38,16 @@ class UserService:
 
     @staticmethod
     def delete_user(user_id: int) -> Optional[User]:
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if user:
             db.session.delete(user)
             db.session.commit()
+            _invalidate_stats()
         return user
 
     @staticmethod
     def regenerate_token(user_id: int) -> Optional[User]:
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if user:
             user.token = generate_token()
             db.session.commit()

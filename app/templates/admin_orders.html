@@ -11,7 +11,7 @@
 <form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
     <div class="form-group" style="min-width: 250px;">
         <label for="search">Поиск</label>
-        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа, описание, ФИО">
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа, описание, ФИО" autocomplete="off">
     </div>
     <div class="form-group" style="min-width: 200px;">
         <label for="user_id">Пользователь</label>
@@ -92,7 +92,7 @@
                     <button type="submit" class="btn btn-sm btn-secondary" title="Отправить email с фото">📧 Отправить</button>
                 </form>
                 {% endif %}
-                <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirm('Удалить заказ #{{ item.order.id }}? Это также удалит все фото.')">
+                <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить заказ #{{ item.order.id }}? Все фото будут удалены.')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                 </form>
@@ -100,7 +100,18 @@
         </tr>
         {% else %}
         <tr>
-            <td colspan="8" class="text-center">Заказов нет</td>
+            <td colspan="8">
+                <div class="empty-state">
+                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <div class="empty-state-title">Заказов нет</div>
+                    <div class="empty-state-text">Измените фильтры или импортируйте заказы из Excel.</div>
+                </div>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
@@ -117,4 +128,8 @@
     {% endif %}
 </nav>
 {% endif %}
+
+<script>
+enableLiveSearch('search');
+</script>
 {% endblock %}

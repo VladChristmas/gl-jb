@@ -86,6 +86,16 @@ def create_app():
     app.register_blueprint(user_bp)
     app.register_blueprint(main_bp)
 
+    @app.errorhandler(404)
+    def not_found(e):
+        from flask import render_template
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        from flask import render_template
+        return render_template('errors/500.html'), 500
+
     if not app.debug:
         log_dir = Path('logs')
         log_dir.mkdir(exist_ok=True)
@@ -104,11 +114,16 @@ def create_app():
 
     with app.app_context():
         try:
-            db.create_all()
-            app.logger.info('Database tables created/verified')
+            from flask_migrate import upgrade
+            upgrade()
+            app.logger.info('Database migrations applied')
         except Exception as e:
-            # Multiple gunicorn workers may race to create tables — benign
-            app.logger.info(f'Database tables already exist ({type(e).__name__})')
+            app.logger.info(f'Migration skipped ({type(e).__name__}): {e}')
+            try:
+                db.create_all()
+                app.logger.info('Database tables created/verified (fallback)')
+            except Exception as e2:
+                app.logger.info(f'Tables already exist ({type(e2).__name__})')
         try:
             from sqlalchemy import inspect
             inspector = inspect(db.engine)

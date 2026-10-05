@@ -92,6 +92,7 @@ class PhotoService:
         )
         db.session.add(photo)
         db.session.commit()
+        OrderService.invalidate_stats_cache()
         return photo
 
     @staticmethod
@@ -114,6 +115,7 @@ class PhotoService:
 
         db.session.delete(photo)
         db.session.commit()
+        OrderService.invalidate_stats_cache()
         return True
 
     @staticmethod

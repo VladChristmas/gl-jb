@@ -23,7 +23,7 @@
             <div class="photo-meta">
                 <p>{{ photo.original_filename }}</p>
                 <small>{{ photo.uploaded_at }}</small>
-                <form method="post" action="{{ url_for('delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirm('Удалить это фото?')" style="margin-top: 0.5rem;">
+                <form method="post" action="{{ url_for('delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить это фото?')" style="margin-top: 0.5rem;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить фото</button>
                 </form>
@@ -33,7 +33,13 @@
     </div>
 {% else %}
     <div class="empty-state">
-        <p>Фото пока не загружены</p>
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        <div class="empty-state-title">Фото пока не загружены</div>
+        <div class="empty-state-text">Загрузите фотографии на странице заказов.</div>
     </div>
 {% endif %}
 

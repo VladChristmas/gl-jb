@@ -29,8 +29,58 @@
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Service Worker Registration -->
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <script>
+    // Toast utility
+    function showToast(message, actionLabel, actionFn, duration) {
+        duration = duration || 5000;
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = '<span>' + message + '</span>';
+        if (actionLabel && actionFn) {
+            const btn = document.createElement('button');
+            btn.className = 'toast-action';
+            btn.textContent = actionLabel;
+            btn.onclick = function() { actionFn(); dismiss(); };
+            toast.appendChild(btn);
+        }
+        container.appendChild(toast);
+        let dismissed = false;
+        function dismiss() {
+            if (dismissed) return;
+            dismissed = true;
+            toast.classList.add('toast-out');
+            setTimeout(function() { toast.remove(); }, 300);
+        }
+        setTimeout(dismiss, duration);
+        return dismiss;
+    }
+
+    // Confirm with undo toast — intercepts form submit
+    function confirmDelete(form, message) {
+        event.preventDefault();
+        showToast(message, 'Удалить', function() { form.submit(); }, 5000);
+        return false;
+    }
+
+    // Debounced live search — auto-submit form after typing pause
+    function enableLiveSearch(inputId, formSelector) {
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        var timer;
+        input.addEventListener('input', function() {
+            clearTimeout(timer);
+            timer = setTimeout(function() {
+                var form = input.closest(formSelector || 'form');
+                if (form) form.submit();
+            }, 400);
+        });
+    }
+
+    // Service Worker Registration
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('{{ url_for('static', filename='sw.js') }}')
