@@ -1,0 +1,124 @@
+[project]
+name = "gl_jb"
+version = "1.0.0"
+description = "GL_JB - Order Management System"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "Flask==3.0.3",
+    "openpyxl==3.1.2",
+    "Werkzeug==3.0.3",
+    "Flask-WTF==1.2.1",
+    "Flask-Limiter==3.8.0",
+    "Flask-Migrate==4.0.5",
+    "Flask-Mail==0.10.0",
+    "python-dotenv==1.0.1",
+    "gunicorn==22.0.0",
+    "psycopg2-binary==2.9.9",
+    "celery==5.4.0",
+    "redis==5.0.1",
+    "flask-talisman==1.1.0",
+    "python-magic-bin==0.4.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-mock==3.16.0",
+    "factory-boy==3.3.3",
+    "black==25.1.0",
+    "ruff==0.4.0",
+    "mypy==1.9.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long
+]
+# per-file-ignores = {
+#     "tests/*": ["S101"],  # assert statements in tests
+#     "migrations/*": ["E501", "S101"],
+# }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = "\\.pyi?$"
+extend-exclude = """
+/(
+  \\.git
+  | \\.hg
+  | \\.mypy_cache
+  | \\.tox
+  | \\.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+"""
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+show_error_codes = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::sqlalchemy.exc.LegacyAPIWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "tests/*",
+    "migrations/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

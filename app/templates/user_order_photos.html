@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Фото заказа #{{ order.id }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Фото заказа #{{ order.id }}</h1>
+    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Назад к заказам</a>
+</header>
+
+<div class="order-info">
+    <p><strong>Номер:</strong> {{ order.order_number }}</p>
+    <p><strong>Описание:</strong> {{ order.description }}</p>
+</div>
+
+{% if photos %}
+    <div class="photos-grid" id="photos-grid">
+        {% for photo in photos %}
+        <div class="photo-item" data-filename="{{ photo.original_filename }}">
+            <a href="{{ url_for('uploaded_file', filename=photo.filename) }}" target="_blank" class="photo-link">
+                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
+            </a>
+            <div class="photo-meta">
+                <p>{{ photo.original_filename }}</p>
+                <small>{{ photo.uploaded_at }}</small>
+                <form method="post" action="{{ url_for('delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirm('Удалить это фото?')" style="margin-top: 0.5rem;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Удалить фото</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Фото пока не загружены</p>
+    </div>
+{% endif %}
+
+<!-- Lightbox Modal -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фото">
+    <button class="lightbox-close" aria-label="Закрыть">×</button>
+    <button class="lightbox-prev" aria-label="Предыдущее">‹</button>
+    <img class="lightbox-image" src="" alt="">
+    <button class="lightbox-next" aria-label="Следующее">›</button>
+    <div class="lightbox-caption"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Lightbox functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const grid = document.getElementById('photos-grid');
+    if (!grid) return;
+    
+    const images = Array.from(grid.querySelectorAll('.photo-link img'));
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImage = lightbox.querySelector('.lightbox-image');
+    const lightboxCaption = lightbox.querySelector('.lightbox-caption');
+    const closeBtn = lightbox.querySelector('.lightbox-close');
+    const prevBtn = lightbox.querySelector('.lightbox-prev');
+    const nextBtn = lightbox.querySelector('.lightbox-next');
+    
+    let currentIndex = 0;
+    
+    function openLightbox(index) {
+        currentIndex = index;
+        updateLightbox();
+        lightbox.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeLightbox() {
+        lightbox.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    function updateLightbox() {
+        const img = images[currentIndex];
+        lightboxImage.src = img.src;
+        lightboxImage.alt = img.alt;
+        lightboxCaption.textContent = img.alt;
+    }
+    
+    function navigate(direction) {
+        currentIndex = (currentIndex + direction + images.length) % images.length;
+        updateLightbox();
+    }
+    
+    // Click on image to open lightbox
+    images.forEach((img, index) => {
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', (e) => {
+            e.preventDefault();
+            openLightbox(index);
+        });
+    });
+    
+    // Close button
+    closeBtn.addEventListener('click', closeLightbox);
+    
+    // Navigation buttons
+    prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigate(-1);
+    });
+    
+    nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigate(1);
+    });
+    
+    // Click outside image to close
+    lightbox.addEventListener('click', (e) => {
+        if (e.target === lightbox) closeLightbox();
+    });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (!lightbox.classList.contains('active')) return;
+        
+        switch (e.key) {
+            case 'Escape':
+                closeLightbox();
+                break;
+            case 'ArrowLeft':
+                navigate(-1);
+                break;
+            case 'ArrowRight':
+                navigate(1);
+                break;
+        }
+    });
+    
+    // Swipe support for mobile
+    let touchStartX = 0;
+    lightbox.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+    });
+    
+    lightbox.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchStartX - touchEndX;
+        if (Math.abs(diff) > 50) {
+            navigate(diff > 0 ? 1 : -1);
+        }
+    });
+});
+</script>
+
+<style>
+.photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.photo-item {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.photo-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.photo-link {
+    display: block;
+    aspect-ratio: 4/3;
+    overflow: hidden;
+}
+
+.photo-link img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.photo-link:hover img {
+    transform: scale(1.05);
+}
+
+.photo-meta {
+    padding: 1rem;
+}
+
+.photo-meta p {
+    margin: 0 0 0.25rem;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+.photo-meta small {
+    color: #999;
+    font-size: 0.8rem;
+}
+
+/* Lightbox */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.lightbox.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.lightbox-image {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+
+.lightbox-close,
+.lightbox-prev,
+.lightbox-next {
+    position: absolute;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    font-size: 2rem;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    z-index: 1;
+}
+
+.lightbox-close:hover,
+.lightbox-prev:hover,
+.lightbox-next:hover {
+    background: rgba(255,255,255,0.4);
+}
+
+.lightbox-close {
+    top: 20px;
+    right: 20px;
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+.lightbox-prev {
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.lightbox-next {
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.lightbox-caption {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 1rem;
+    max-width: 80%;
+    text-align: center;
+    word-break: break-word;
+}
+
+@media (max-width: 600px) {
+    .lightbox-prev, .lightbox-next {
+        display: none;
+    }
+    
+    .lightbox-close {
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать заказ #{{ order.id }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Редактировать заказ #{{ order.id }}</h1>
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+<div class="card">
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="order_number">Номер заказа</label>
+            <input type="text" id="order_number" name="order_number" value="{{ order.order_number }}" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Описание</label>
+            <textarea id="description" name="description" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius);">{{ order.description }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+    </form>
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+    <h3>Информация</h3>
+    <p><strong>Пользователь:</strong> {{ order.user.fio }} (токен: {{ order.user.token }})</p>
+    <p><strong>Создан:</strong> {{ order.created_at }}</p>
+    <p><strong>Фото:</strong> {{ order.photos|length }}</p>
+    {% if order.photos %}
+    <a href="{{ url_for('order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+    {% endif %}
+</div>
+{% endblock %}

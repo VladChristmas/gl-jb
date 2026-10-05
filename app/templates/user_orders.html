@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Мои заказы{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Мои заказы</h1>
+    <div class="user-info">
+        <span>{{ session.user_fio }}</span>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm">Выйти</a>
+    </div>
+</header>
+
+<form method="get" class="form-inline" style="margin-bottom: 1rem;">
+    <div class="form-group" style="flex: 1;">
+        <label for="search">Поиск</label>
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или описание">
+    </div>
+    <button type="submit" class="btn btn-secondary">Найти</button>
+    {% if search %}
+    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Сбросить</a>
+    {% endif %}
+</form>
+
+{% if orders %}
+    <div class="orders-list">
+        {% for order in orders %}
+        <div class="order-card" data-order-id="{{ order.id }}">
+            <div class="order-header">
+                <h3>{{ order.order_number }}</h3>
+                <span class="badge badge-{{ 'success' if order.photos_count > 0 else 'warning' }}">
+                    {{ order.photos_count }} фото
+                </span>
+            </div>
+            <div class="order-description">{{ order.description }}</div>
+            <div class="order-actions">
+                <div class="drop-zone" id="drop-zone-{{ order.id }}">
+                    <input type="file" name="photo" id="file-input-{{ order.id }}" accept="image/*" capture="environment" hidden>
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p>Перетащите фото сюда или нажмите для выбора</p>
+                        <span class="drop-zone-hint">JPG, PNG, WebP до 16 МБ</span>
+                    </div>
+                    <div class="drop-zone-preview" hidden></div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm upload-btn" data-order-id="{{ order.id }}" disabled>
+                    Загрузить фото
+                </button>
+                {% if order.photos_count > 0 %}
+                <a href="{{ url_for('order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <nav class="pagination">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('user_orders', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
+        {% endif %}
+        <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+            <a href="{{ url_for('user_orders', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <p>У вас пока нет заказов</p>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Drag and drop upload functionality
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+        const orderId = zone.dataset.orderId;
+        const fileInput = document.getElementById(`file-input-${orderId}`);
+        const uploadBtn = document.querySelector(`.upload-btn[data-order-id="${orderId}"]`);
+        const preview = zone.querySelector('.drop-zone-preview');
+        let selectedFile = null;
+
+        // Click to select file
+        zone.addEventListener('click', (e) => {
+            if (e.target === zone || e.target.closest('.drop-zone-content')) {
+                fileInput.click();
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+
+        // Drag and drop
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+        });
+
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                alert('Недопустимый формат файла. Разрешены: JPG, PNG, WebP');
+                return;
+            }
+            
+            // Validate file size (16MB)
+            if (file.size > 16 * 1024 * 1024) {
+                alert('Файл слишком большой. Максимум 16 МБ');
+                return;
+            }
+
+            selectedFile = file;
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.innerHTML = `
+                    <img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                    <p class="preview-filename">${file.name} (${(file.size / 1024).toFixed(1)} KB)</p>
+                `;
+                preview.hidden = false;
+                zone.querySelector('.drop-zone-content').hidden = true;
+                uploadBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Upload button click
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Загрузка...';
+            
+            const formData = new FormData();
+            formData.append('photo', selectedFile);
+            
+            try {
+                const response = await fetch(`/orders/${orderId}/upload`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                    }
+                });
+                
+                if (response.ok || response.redirected) {
+                    // Reload page to show updated state
+                    window.location.reload();
+                } else {
+                    const text = await response.text();
+                    alert('Ошибка загрузки: ' + text);
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Загрузить фото';
+                }
+            } catch (error) {
+                alert('Ошибка сети: ' + error.message);
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Загрузить фото';
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.5rem;
+    background: #fafafa;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+    border-color: #0071e3;
+    background: #f0f7ff;
+}
+
+.drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: #666;
+}
+
+.drop-zone-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-filename {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.upload-btn {
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+.order-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.order-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.order-description {
+    color: #666;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.order-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.form-inline {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.form-group label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #999;
+}
+</style>
+{% endblock %}

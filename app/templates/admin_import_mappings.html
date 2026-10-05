@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Маппинги импорта{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Настройки импорта Excel</h1>
+    <a href="{{ url_for('admin.import_excel') }}" class="btn btn-secondary">Импортировать файл</a>
+</div>
+
+<div class="card">
+    <h2>Создать маппинг</h2>
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label for="name">Название *</label>
+            <input type="text" id="name" name="name" required placeholder="Напр. Заказы, Жалобы горячей линии">
+        </div>
+        
+        <div class="form-group">
+            <label for="type">Тип *</label>
+            <select id="type" name="type" required>
+                <option value="">Выберите тип</option>
+                <option value="orders">Заказы (создают заказы)</option>
+                <option value="complaints">Жалобы (привязываются к заказам по ID)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="id_column">Колонка с ID обращения *</label>
+            <input type="text" id="id_column" name="id_column" required placeholder="Напр. ID обращения, Ticket ID, Номер заявки">
+        </div>
+        
+        <div class="form-group">
+            <label for="fio_column">Колонка с ФИО (для заказов)</label>
+            <input type="text" id="fio_column" name="fio_column" placeholder="Напр. ФИО, Фамилия Имя Отчество">
+        </div>
+        
+        <div class="form-group">
+            <label for="order_number_column">Колонка с номером заказа (для заказов)</label>
+            <input type="text" id="order_number_column" name="order_number_column" placeholder="Напр. Номер заказа, Order Number">
+        </div>
+        
+        <div class="form-group full-width">
+            <label>Дополнительные поля (маппинг колонок)</label>
+            <p class="help-text">Укажите соответствие: колонка в файле → поле в системе</p>
+            <div id="mapping-fields">
+                <div class="mapping-row">
+                    <input type="text" name="mapping_key[]" placeholder="Колонка в Excel (напр. Товар)" required>
+                    <span>→</span>
+                    <input type="text" name="mapping_value[]" placeholder="Поле (напр. product)" required>
+                    <button type="button" class="btn btn-danger btn-sm remove-mapping">×</button>
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="add-mapping">+ Добавить поле</button>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Создать маппинг</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Список маппингов</h2>
+    {% if mappings %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Тип</th>
+                <th>ID колонка</th>
+                <th>ФИО колонка</th>
+                <th>Доп. поля</th>
+                <th>Создан</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mappings %}
+            <tr>
+                <td>{{ m.name }}</td>
+                <td><span class="badge badge-{{ 'primary' if m.type == 'orders' else 'warning' }}">{{ m.type }}</span></td>
+                <td>{{ m.id_column }}</td>
+                <td>{{ m.fio_column or '-' }}</td>
+                <td>
+                    {% if m.field_mapping %}
+                        {% for k, v in m.field_mapping.items() %}
+                            <span class="tag">{{ k }}→{{ v }}</span>
+                        {% endfor %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '-' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin.delete_import_mapping', mapping_id=m.id) }}" onsubmit="return confirm('Удалить?')">
+                        <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">Маппингов нет. Создайте первый выше.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('add-mapping').addEventListener('click', function() {
+    const container = document.getElementById('mapping-fields');
+    const div = document.createElement('div');
+    div.className = 'mapping-row';
+    div.innerHTML = `
+        <input type="text" name="mapping_key[]" placeholder="Колонка в Excel" required>
+        <span>→</span>
+        <input type="text" name="mapping_value[]" placeholder="Поле" required>
+        <button type="button" class="btn btn-danger btn-sm remove-mapping">×</button>
+    `;
+    container.appendChild(div);
+});
+
+document.getElementById('mapping-fields').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-mapping')) {
+        const rows = document.querySelectorAll('.mapping-row');
+        if (rows.length > 1) {
+            e.target.closest('.mapping-row').remove();
+        }
+    }
+});
+</script>
+{% endblock %}

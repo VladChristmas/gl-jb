@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: gl-jb
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gl-jb-db
+          property: connectionString
+      - key: UPLOAD_FOLDER
+        value: uploads
+      - key: MAX_CONTENT_LENGTH
+        value: "16777216"
+      - key: RATELIMIT_STORAGE_URL
+        value: memory://
+    healthCheckPath: /health
+    autoDeploy: true
+
+databases:
+  - name: gl-jb-db
+    databaseName: gl_jb
+    user: gl_jb_user
+    plan: free

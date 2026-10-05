@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Панель администратора{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Панель администратора</h1>
+    <a href="{{ url_for('auth.admin_logout') }}" class="btn btn-secondary">Выйти</a>
+</header>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ users_count }}</div>
+        <div class="stat-label">Пользователей</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ orders_count }}</div>
+        <div class="stat-label">Всего заказов</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ orders_with_photos }}</div>
+        <div class="stat-label">Заказов с фото (подтверждено)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ photos_count }}</div>
+        <div class="stat-label">Всего фото</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Хранилище фото</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing);">
+        <div>
+            <strong>Путь:</strong><br>
+            <code style="font-size: 13px; word-break: break-all;">{{ upload_folder }}</code>
+        </div>
+        <div>
+            <strong>Размер:</strong><br>
+            <span style="font-size: 24px; font-weight: 600; color: var(--primary);">{{ (upload_size / 1024 / 1024) | round(2) }} MB</span>
+        </div>
+        <div>
+            <strong>Файлов:</strong><br>
+            <span style="font-size: 24px; font-weight: 600; color: var(--primary);">{{ photos_count }}</span>
+        </div>
+    </div>
+</div>
+
+<nav class="admin-nav">
+    <a href="{{ url_for('admin.users') }}" class="nav-item">
+        <span>👥</span> Управление пользователями
+    </a>
+    <a href="{{ url_for('admin.import_mappings') }}" class="nav-item">
+        <span>⚙️</span> Настройки импорта
+    </a>
+    <a href="{{ url_for('admin.import_excel') }}" class="nav-item">
+        <span>📥</span> Импорт Excel
+    </a>
+    <a href="{{ url_for('admin.upload_excel') }}" class="nav-item">
+        <span>📊</span> Загрузить Excel с заказами (старый)
+    </a>
+    <a href="{{ url_for('admin.orders') }}" class="nav-item">
+        <span>📋</span> Все заказы и фото
+    </a>
+    <a href="{{ url_for('admin.export_excel') }}" class="nav-item">
+        <span>📤</span> Экспорт заказов в Excel
+    </a>
+</nav>
+{% endblock %}

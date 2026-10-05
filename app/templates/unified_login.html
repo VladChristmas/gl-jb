@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Вход в систему{% endblock %}
+
+{% block content %}
+<div class="login-box">
+    <h1>Вход в систему</h1>
+    <p class="subtitle">Введите ваш токен — система сама определит роль</p>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+            <label for="token">Токен</label>
+            <input type="text" id="token" name="token" placeholder="Вставьте токен сюда" autocomplete="off" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-full">Войти</button>
+    </form>
+    
+    <div class="login-hints">
+        <details>
+            <summary>Как войти?</summary>
+            <ul>
+                <li><strong>Суперадмин:</strong> вставьте токен суперадмина</li>
+                <li><strong>Пользователь:</strong> вставьте свой персональный токен</li>
+            </ul>
+            <p>Система сама определит вашу роль и перенаправит в нужный раздел.</p>
+        </details>
+    </div>
+</div>
+{% endblock %}
