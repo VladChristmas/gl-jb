@@ -2,6 +2,16 @@ import pytest
 import os
 import tempfile
 import uuid
+
+# Set test env BEFORE importing app/config (config.py loads .env at import time)
+os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
+os.environ['SECRET_KEY'] = 'test-secret-key'
+os.environ['ADMIN_PASSWORD'] = 'test-admin-password'
+os.environ['ADMIN_TOKEN'] = 'TEST1'
+os.environ['FLASK_DEBUG'] = '1'
+os.environ['MAIL_USERNAME'] = ''
+os.environ['MAIL_PASSWORD'] = ''
+
 from app import create_app
 from app.extensions import db
 from app.models import User, Order, Photo
@@ -12,28 +22,14 @@ from app.utils.token import generate_token
 @pytest.fixture(scope='session')
 def app():
     """Create application for testing."""
-    # Use temporary database
-    db_fd, db_path = tempfile.mkstemp(suffix='.db')
-    
-    os.environ['DATABASE_URL'] = f'sqlite:///{db_path}'
-    os.environ['SECRET_KEY'] = 'test-secret-key'
-    os.environ['ADMIN_PASSWORD'] = 'test-admin-password'
-    os.environ['ADMIN_TOKEN'] = 'TEST1'
-    os.environ['FLASK_DEBUG'] = '1'
-    os.environ['MAIL_USERNAME'] = ''
-    os.environ['MAIL_PASSWORD'] = ''
-    
     app = create_app()
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
-    
+
     with app.app_context():
         db.create_all()
         yield app
         db.drop_all()
-    
-    os.close(db_fd)
-    os.unlink(db_path)
 
 
 @pytest.fixture(scope='function')
