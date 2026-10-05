@@ -18,7 +18,7 @@
     </div>
     <button type="submit" class="btn btn-secondary">Найти</button>
     {% if search %}
-    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Сбросить</a>
+    <a href="{{ url_for('user.orders') }}" class="btn btn-secondary">Сбросить</a>
     {% endif %}
 </form>
 
@@ -51,7 +51,7 @@
                     Загрузить фото
                 </button>
                 {% if order.photos_count > 0 %}
-                <a href="{{ url_for('order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+                <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
                 {% endif %}
             </div>
         </div>
@@ -61,11 +61,11 @@
     {% if pagination.pages > 1 %}
     <nav class="pagination">
         {% if pagination.has_prev %}
-            <a href="{{ url_for('user_orders', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
+            <a href="{{ url_for('user.orders', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
         {% endif %}
         <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
         {% if pagination.has_next %}
-            <a href="{{ url_for('user_orders', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+            <a href="{{ url_for('user.orders', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
         {% endif %}
     </nav>
     {% endif %}

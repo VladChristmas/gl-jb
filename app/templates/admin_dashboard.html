@@ -8,61 +8,154 @@
     <a href="{{ url_for('auth.admin_logout') }}" class="btn btn-secondary">Выйти</a>
 </header>
 
+<!-- Stats Cards -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-number">{{ users_count }}</div>
-        <div class="stat-label">Пользователей</div>
+        <div class="stat-number">{{ stats.users_count }}</div>
+        <div class="stat-label">Курьеров</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number">{{ orders_count }}</div>
+        <div class="stat-number">{{ stats.orders_count }}</div>
         <div class="stat-label">Всего заказов</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number">{{ orders_with_photos }}</div>
-        <div class="stat-label">Заказов с фото (подтверждено)</div>
+        <div class="stat-number">{{ stats.orders_with_photos }}</div>
+        <div class="stat-label">Подтверждено</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number">{{ photos_count }}</div>
-        <div class="stat-label">Всего фото</div>
+        <div class="stat-number" style="color: {% if stats.orders_without_photos > 0 %}var(--warning){% else %}var(--success){% endif %};">
+            {{ stats.orders_without_photos }}
+        </div>
+        <div class="stat-label">Ожидают фото</div>
     </div>
 </div>
 
+<!-- Completion Rate -->
 <div class="card">
-    <h2>Хранилище фото</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing);">
-        <div>
-            <strong>Путь:</strong><br>
-            <code style="font-size: 13px; word-break: break-all;">{{ upload_folder }}</code>
+    <h2>Общий процент выполнения</h2>
+    <div class="progress-bar-container">
+        <div class="progress-bar" style="width: {{ stats.completion_rate }}%;">
+            <span>{{ stats.completion_rate }}%</span>
         </div>
-        <div>
-            <strong>Размер:</strong><br>
-            <span style="font-size: 24px; font-weight: 600; color: var(--primary);">{{ (upload_size / 1024 / 1024) | round(2) }} MB</span>
+    </div>
+    <p class="help-text" style="margin-top: 8px;">
+        {{ stats.orders_with_photos }} из {{ stats.orders_count }} заказов подтверждены фото
+    </p>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <h2>Быстрые действия</h2>
+    <nav class="admin-nav">
+        <a href="{{ url_for('admin.users') }}" class="nav-item">
+            <span>👥</span> Пользователи
+        </a>
+        <a href="{{ url_for('admin.orders') }}" class="nav-item">
+            <span>📋</span> Все заказы
+        </a>
+        <a href="{{ url_for('admin.import_excel') }}" class="nav-item">
+            <span>📥</span> Импорт Excel
+        </a>
+        <a href="{{ url_for('admin.upload_excel') }}" class="nav-item">
+            <span>📊</span> Загрузить Excel
+        </a>
+        <a href="{{ url_for('admin.import_mappings') }}" class="nav-item">
+            <span>⚙️</span> Маппинги
+        </a>
+        <a href="{{ url_for('admin.export_excel') }}" class="nav-item">
+            <span>📤</span> Экспорт
+        </a>
+    </nav>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Recent Orders -->
+    <div class="card">
+        <h2>Последние заказы</h2>
+        {% if stats.recent_orders %}
+        <div class="activity-list">
+            {% for order, user in stats.recent_orders %}
+            <div class="activity-item">
+                <div class="activity-icon">{{ '✅' if order.photos else '⏳' }}</div>
+                <div class="activity-body">
+                    <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
+                    <div class="activity-meta">{{ user.fio }} · {{ order.created_at.strftime('%d.%m %H:%M') if order.created_at else '' }}</div>
+                </div>
+                <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">→</a>
+            </div>
+            {% endfor %}
         </div>
-        <div>
-            <strong>Файлов:</strong><br>
-            <span style="font-size: 24px; font-weight: 600; color: var(--primary);">{{ photos_count }}</span>
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <div class="empty-state-text">Заказов пока нет</div>
         </div>
+        {% endif %}
+    </div>
+
+    <!-- Top Couriers -->
+    <div class="card">
+        <h2>Лучшие курьеры</h2>
+        {% if stats.top_couriers %}
+        <div class="activity-list">
+            {% for fio, count in stats.top_couriers %}
+            <div class="activity-item">
+                <div class="activity-icon">{{ loop.index }}</div>
+                <div class="activity-body">
+                    <div class="activity-title">{{ fio }}</div>
+                    <div class="activity-meta">{{ count }} фото</div>
+                </div>
+                <div class="badge badge-success">{{ count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <div class="empty-state-text">Пока нет загруженных фото</div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
-<nav class="admin-nav">
-    <a href="{{ url_for('admin.users') }}" class="nav-item">
-        <span>👥</span> Управление пользователями
-    </a>
-    <a href="{{ url_for('admin.import_mappings') }}" class="nav-item">
-        <span>⚙️</span> Настройки импорта
-    </a>
-    <a href="{{ url_for('admin.import_excel') }}" class="nav-item">
-        <span>📥</span> Импорт Excel
-    </a>
-    <a href="{{ url_for('admin.upload_excel') }}" class="nav-item">
-        <span>📊</span> Загрузить Excel с заказами (старый)
-    </a>
-    <a href="{{ url_for('admin.orders') }}" class="nav-item">
-        <span>📋</span> Все заказы и фото
-    </a>
-    <a href="{{ url_for('admin.export_excel') }}" class="nav-item">
-        <span>📤</span> Экспорт заказов в Excel
-    </a>
-</nav>
+<!-- Recent Photos -->
+<div class="card">
+    <h2>Последние фото</h2>
+    {% if stats.recent_photos %}
+    <div class="photos-grid">
+        {% for photo, order, user in stats.recent_photos %}
+        <div class="photo-item">
+            <a href="{{ url_for('main.uploaded_file', filename=photo.filename) }}" target="_blank" class="photo-link">
+                <img src="{{ url_for('main.uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
+            </a>
+            <div class="photo-meta">
+                <p>{{ order.order_number or '#' ~ order.id }}</p>
+                <small>{{ user.fio }} · {{ photo.uploaded_at.strftime('%d.%m %H:%M') if photo.uploaded_at else '' }}</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-text">Фото пока не загружены</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Storage Info -->
+<div class="card">
+    <h2>Хранилище</h2>
+    <div class="storage-info">
+        <div class="storage-item">
+            <div class="storage-label">Путь</div>
+            <code>{{ stats.upload_folder }}</code>
+        </div>
+        <div class="storage-item">
+            <div class="storage-label">Размер</div>
+            <div class="storage-value">{{ (stats.upload_size / 1024 / 1024) | round(2) }} MB</div>
+        </div>
+        <div class="storage-item">
+            <div class="storage-label">Файлов</div>
+            <div class="storage-value">{{ stats.photos_count }}</div>
+        </div>
+    </div>
+</div>
 {% endblock %}

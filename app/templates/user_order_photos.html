@@ -5,7 +5,7 @@
 {% block content %}
 <header class="page-header">
     <h1>Фото заказа #{{ order.id }}</h1>
-    <a href="{{ url_for('user_orders') }}" class="btn btn-secondary">Назад к заказам</a>
+    <a href="{{ url_for('user.orders') }}" class="btn btn-secondary">Назад к заказам</a>
 </header>
 
 <div class="order-info">
@@ -17,13 +17,13 @@
     <div class="photos-grid" id="photos-grid">
         {% for photo in photos %}
         <div class="photo-item" data-filename="{{ photo.original_filename }}">
-            <a href="{{ url_for('uploaded_file', filename=photo.filename) }}" target="_blank" class="photo-link">
-                <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
+            <a href="{{ url_for('main.uploaded_file', filename=photo.filename) }}" target="_blank" class="photo-link">
+                <img src="{{ url_for('main.uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
             </a>
             <div class="photo-meta">
                 <p>{{ photo.original_filename }}</p>
                 <small>{{ photo.uploaded_at }}</small>
-                <form method="post" action="{{ url_for('delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить это фото?')" style="margin-top: 0.5rem;">
+                <form method="post" action="{{ url_for('user.delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить это фото?')" style="margin-top: 0.5rem;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить фото</button>
                 </form>

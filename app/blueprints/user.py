@@ -3,6 +3,7 @@ from app.services.order_service import OrderService
 from app.services.photo_service import PhotoService
 from app.services.email_service import EmailService
 from app.services.user_service import UserService
+from app.services.dashboard_service import DashboardService
 from app.extensions import db
 from config import UPLOAD_FOLDER
 import os
@@ -19,6 +20,14 @@ def user_required(f):
             return redirect(url_for('auth.unified_login'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+@user_bp.route('/dashboard')
+@user_required
+def dashboard():
+    user_id = session['user_id']
+    stats = DashboardService.courier_stats(user_id)
+    return render_template('user_dashboard.html', stats=stats)
 
 
 @user_bp.route('/orders')

@@ -4,6 +4,7 @@ from app.services.user_service import UserService
 from app.services.order_service import OrderService
 from app.services.import_service import ImportService
 from app.services.email_service import EmailService
+from app.services.dashboard_service import DashboardService
 from app.models import ImportMapping
 from app.extensions import db
 from config import UPLOAD_FOLDER
@@ -30,7 +31,7 @@ def admin_required(f):
 @admin_bp.route('/')
 @admin_required
 def dashboard():
-    stats = OrderService.get_dashboard_stats()
+    stats = DashboardService.admin_stats()
 
     upload_folder = os.path.abspath(UPLOAD_FOLDER)
     upload_size = 0
@@ -41,13 +42,10 @@ def dashboard():
                 if os.path.isfile(fp):
                     upload_size += os.path.getsize(fp)
 
-    return render_template('admin_dashboard.html',
-                           users_count=stats['users_count'],
-                           orders_count=stats['orders_count'],
-                           photos_count=stats['photos_count'],
-                           orders_with_photos=stats['orders_with_photos'],
-                           upload_folder=upload_folder,
-                           upload_size=upload_size)
+    stats['upload_folder'] = upload_folder
+    stats['upload_size'] = upload_size
+
+    return render_template('admin_dashboard.html', stats=stats)
 
 
 @admin_bp.route('/users', methods=['GET', 'POST'])

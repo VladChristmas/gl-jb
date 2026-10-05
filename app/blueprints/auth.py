@@ -25,7 +25,7 @@ def unified_login():
         if user:
             session['user_id'] = user.id
             session['user_fio'] = user.fio
-            return redirect(url_for('user.orders'))
+            return redirect(url_for('user.dashboard'))
         else:
             flash('Неверный токен', 'error')
 

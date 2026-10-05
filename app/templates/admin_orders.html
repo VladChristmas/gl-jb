@@ -80,7 +80,7 @@
             <td>
                 <span class="badge">{{ item.photos_count }}</span>
                 {% if item.photos_count > 0 %}
-                <a href="{{ url_for('order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
+                <a href="{{ url_for('user.order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
                 {% endif %}
             </td>
             <td>{{ item.order.created_at }}</td>
@@ -120,11 +120,11 @@
 {% if pagination.pages > 1 %}
 <nav class="pagination">
     {% if pagination.has_prev %}
-        <a href="{{ url_for('admin_orders', page=pagination.prev_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">← Назад</a>
+        <a href="{{ url_for('admin.orders', page=pagination.prev_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">← Назад</a>
     {% endif %}
     <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
     {% if pagination.has_next %}
-        <a href="{{ url_for('admin_orders', page=pagination.next_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+        <a href="{{ url_for('admin.orders', page=pagination.next_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
     {% endif %}
 </nav>
 {% endif %}
