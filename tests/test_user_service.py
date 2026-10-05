@@ -1,12 +1,11 @@
-import pytest
 from app.services.user_service import UserService
-from app.models import User
 
 
 class TestUserService:
     def test_create_user(self, db_session):
         import uuid
-        unique_fio = f'Test User {uuid.uuid4().hex[:8]}'
+
+        unique_fio = f"Test User {uuid.uuid4().hex[:8]}"
         user = UserService.create_user(unique_fio)
         assert user.fio == unique_fio
         assert user.token is not None
@@ -24,7 +23,7 @@ class TestUserService:
         assert found.fio == admin_user.fio
 
     def test_get_user_by_token_not_found(self, db_session):
-        found = UserService.get_user_by_token('INVALID')
+        found = UserService.get_user_by_token("INVALID")
         assert found is None
 
     def test_get_all_users(self, db_session, admin_user, regular_user):
@@ -45,7 +44,7 @@ class TestUserService:
         deleted = UserService.delete_user(user_id)
         assert deleted is not None
         assert deleted.fio == user_fio
-        
+
         # Verify user is deleted
         found = UserService.get_user_by_id(user_id)
         assert found is None

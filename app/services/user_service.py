@@ -1,11 +1,13 @@
-from typing import Optional, List
-from app.models.user import User
+from flask_sqlalchemy.pagination import Pagination
+
 from app.extensions import db
+from app.models.user import User
 from app.utils.token import generate_token
 
 
 def _invalidate_stats():
     from app.services.order_service import OrderService
+
     OrderService.invalidate_stats_cache()
 
 
@@ -20,24 +22,26 @@ class UserService:
         return user
 
     @staticmethod
-    def get_user_by_id(user_id: int) -> Optional[User]:
+    def get_user_by_id(user_id: int) -> User | None:
         return db.session.get(User, user_id)
 
     @staticmethod
-    def get_user_by_token(token: str) -> Optional[User]:
-        return User.query.filter_by(token=token).first()
+    def get_user_by_token(token: str) -> User | None:
+        user: User | None = User.query.filter_by(token=token).first()
+        return user
 
     @staticmethod
-    def get_all_users(page: int = 1, per_page: int = 20, search: str = '') -> object:
+    def get_all_users(page: int = 1, per_page: int = 20, search: str = "") -> Pagination:
         query = User.query
         if search:
-            query = query.filter(User.fio.ilike(f'%{search}%'))
-        return query.order_by(User.created_at.desc(), User.id.desc()).paginate(
+            query = query.filter(User.fio.ilike(f"%{search}%"))
+        pagination: Pagination = query.order_by(User.created_at.desc(), User.id.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
+        return pagination
 
     @staticmethod
-    def delete_user(user_id: int) -> Optional[User]:
+    def delete_user(user_id: int) -> User | None:
         user = db.session.get(User, user_id)
         if user:
             db.session.delete(user)
@@ -46,7 +50,7 @@ class UserService:
         return user
 
     @staticmethod
-    def regenerate_token(user_id: int) -> Optional[User]:
+    def regenerate_token(user_id: int) -> User | None:
         user = db.session.get(User, user_id)
         if user:
             user.token = generate_token()

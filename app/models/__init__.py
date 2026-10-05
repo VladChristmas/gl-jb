@@ -1,6 +1,6 @@
-from app.models.user import User
+from app.models.import_mapping import ImportMapping
 from app.models.order import Order
 from app.models.photo import Photo
-from app.models.import_mapping import ImportMapping
+from app.models.user import User
 
-__all__ = ['User', 'Order', 'Photo', 'ImportMapping']
+__all__ = ["User", "Order", "Photo", "ImportMapping"]
