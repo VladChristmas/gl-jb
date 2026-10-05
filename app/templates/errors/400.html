@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Некорректный запрос{% endblock %}
+
+{% block content %}
+<div class="empty-state" style="margin-top: 80px;">
+    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <line x1="12" y1="8" x2="12" y2="13"/>
+        <circle cx="12" cy="16.5" r="0.5" fill="currentColor"/>
+    </svg>
+    <div class="empty-state-title">400 — Некорректный запрос</div>
+    <div class="empty-state-text">{{ hint or 'Сервер не смог обработать запрос. Попробуйте ещё раз.' }}</div>
+    <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <button onclick="location.reload()" class="btn btn-primary">Обновить страницу</button>
+        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">На главную</a>
+    </div>
+</div>
+{% endblock %}

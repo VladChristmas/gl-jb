@@ -82,7 +82,7 @@
 {% endif %}
 {% endblock %}
 
-{% block scripts %}
+{% block extra_scripts %}
 <script>
 enableLiveSearch('search');
 </script>
@@ -203,19 +203,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <style>
 .drop-zone {
-    border: 2px dashed #ccc;
+    border: 2px dashed var(--border);
     border-radius: 8px;
     padding: 1.5rem;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: 0.5rem;
-    background: #fafafa;
+    background: var(--surface-2);
 }
 
 .drop-zone:hover, .drop-zone.drag-over {
-    border-color: #0071e3;
-    background: #f0f7ff;
+    border-color: var(--primary);
+    background: rgba(0, 113, 227, 0.08);
 }
 
 .drop-zone-content {
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
-    color: #666;
+    color: var(--text-secondary);
 }
 
 .drop-zone-preview {
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .preview-filename {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--text-secondary);
 }
 
 .upload-btn {
@@ -244,12 +244,12 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .order-card {
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-light);
     border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 1rem;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
 }
 
 .order-header {
@@ -272,17 +272,17 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .badge-success {
-    background: #d4edda;
-    color: #155724;
+    background: rgba(48, 209, 88, 0.1);
+    color: var(--badge-success-fg);
 }
 
 .badge-warning {
-    background: #fff3cd;
-    color: #856404;
+    background: rgba(255, 159, 10, 0.1);
+    color: var(--badge-warning-fg);
 }
 
 .order-description {
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 1rem;
     line-height: 1.5;
 }
@@ -309,14 +309,16 @@ document.addEventListener('DOMContentLoaded', function() {
 .form-group label {
     font-size: 0.85rem;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .form-group input {
     padding: 0.5rem 0.75rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 1rem;
+    background: var(--card-bg);
+    color: var(--text);
 }
 
 .pagination {
@@ -328,14 +330,14 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .pagination-info {
-    color: #666;
+    color: var(--text-secondary);
     font-size: 0.9rem;
 }
 
 .empty-state {
     text-align: center;
     padding: 3rem;
-    color: #999;
+    color: var(--text-tertiary);
 }
 </style>
 {% endblock %}

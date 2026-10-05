@@ -34,7 +34,8 @@ class TestUserService:
         assert len(test_users) == 2
 
     def test_get_all_users_with_search(self, db_session, admin_user, regular_user):
-        pagination = UserService.get_all_users(page=1, per_page=10, search=admin_user.fio[:8])
+        # Search by the unique suffix so only this admin matches
+        pagination = UserService.get_all_users(page=1, per_page=10, search=admin_user.fio[-8:])
         found = [u for u in pagination.items if u.id == admin_user.id]
         assert len(found) == 1
 

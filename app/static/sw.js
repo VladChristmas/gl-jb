@@ -1,9 +1,8 @@
-const CACHE_NAME = 'gl_jb-v1';
+const CACHE_NAME = 'gl_jb-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/orders',
   '/static/manifest.json',
-  '/static/css/style.css',
+  '/static/style.css',
+  '/static/icons/icon-192.png',
 ];
 
 // Install event - cache static assets
@@ -52,9 +51,9 @@ self.addEventListener('fetch', (event) => {
     return; // Let browser handle uploads
   }
   
-  // Static assets - cache first
-  if (url.pathname.startsWith('/static/') || url.pathname === '/static/manifest.json') {
-    event.respondWith(cacheFirst(event.request));
+  // Static assets - stale while revalidate (instant paint, background update)
+  if (url.pathname.startsWith('/static/')) {
+    event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
   
@@ -73,6 +72,27 @@ self.addEventListener('fetch', (event) => {
   // Default - network first
   event.respondWith(networkFirst(event.request));
 });
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const networkUpdate = fetch(request)
+    .then((response) => {
+      if (response && response.ok) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    return cached;
+  }
+
+  const fresh = await networkUpdate;
+  return fresh || new Response('', { status: 504 });
+}
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);

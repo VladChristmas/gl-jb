@@ -3,6 +3,7 @@
 {% block title %}Маппинги импорта{% endblock %}
 
 {% block content %}
+<a href="{{ url_for('admin.import_excel') }}" class="btn-back">‹ Назад</a>
 <div class="page-header">
     <h1>Настройки импорта Excel</h1>
     <a href="{{ url_for('admin.import_excel') }}" class="btn btn-secondary">Импортировать файл</a>
@@ -11,6 +12,7 @@
 <div class="card">
     <h2>Создать маппинг</h2>
     <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="name">Название *</label>
             <input type="text" id="name" name="name" required placeholder="Напр. Заказы, Жалобы горячей линии">
@@ -92,6 +94,7 @@
                 <td>{{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '-' }}</td>
                 <td>
                     <form method="post" action="{{ url_for('admin.delete_import_mapping', mapping_id=m.id) }}" onsubmit="return confirm('Удалить?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                     </form>
                 </td>
@@ -105,7 +108,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_scripts %}
 <script>
 document.getElementById('add-mapping').addEventListener('click', function() {
     const container = document.getElementById('mapping-fields');

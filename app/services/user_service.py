@@ -32,7 +32,7 @@ class UserService:
         query = User.query
         if search:
             query = query.filter(User.fio.ilike(f'%{search}%'))
-        return query.order_by(User.created_at.desc()).paginate(
+        return query.order_by(User.created_at.desc(), User.id.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
 

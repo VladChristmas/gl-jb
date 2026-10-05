@@ -13,7 +13,19 @@ def index():
 
 @main_bp.route('/health')
 def health_check():
-    return jsonify({'status': 'ok', 'timestamp': datetime.utcnow().isoformat()})
+    from app.extensions import db
+    from sqlalchemy import text
+
+    payload = {'status': 'ok', 'timestamp': datetime.utcnow().isoformat()}
+    try:
+        db.session.execute(text('SELECT 1'))
+        payload['database'] = 'ok'
+    except Exception:
+        db.session.rollback()
+        payload['status'] = 'degraded'
+        payload['database'] = 'error'
+        return jsonify(payload), 503
+    return jsonify(payload)
 
 
 @main_bp.route('/uploads/<filename>')

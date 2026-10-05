@@ -12,9 +12,31 @@
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <title>{% block title %}Фото заказов{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+    // Apply saved theme before first paint (no flash)
+    (function () {
+        var t = 'system';
+        try { t = localStorage.getItem('theme') || 'system'; } catch (e) {}
+        if (['light', 'dark', 'system'].indexOf(t) === -1) t = 'system';
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="{{ url_for('main.index') }}">
+                <span class="brand-mark">GL</span>
+                GL_JB <span class="brand-sub">Фото заказов</span>
+            </a>
+            <div class="theme-switch" role="group" aria-label="Тема оформления">
+                <button type="button" class="theme-btn" data-theme-value="light" title="Светлая тема">☀<span>Светлая</span></button>
+                <button type="button" class="theme-btn" data-theme-value="dark" title="Тёмная тема">☾<span>Тёмная</span></button>
+                <button type="button" class="theme-btn" data-theme-value="system" title="Как в системе">⚙<span>Системная</span></button>
+            </div>
+        </div>
+    </header>
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -79,6 +101,32 @@
             }, 400);
         });
     }
+
+    // Theme switcher (light / dark / system)
+    (function () {
+        var meta = document.querySelector('meta[name="theme-color"]');
+        function isDark() {
+            var t = document.documentElement.getAttribute('data-theme');
+            if (t === 'dark') return true;
+            if (t === 'light') return false;
+            return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        }
+        function syncMeta() {
+            if (meta) meta.setAttribute('content', isDark() ? '#1d1d1f' : '#f5f5f7');
+        }
+        document.querySelectorAll('.theme-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var v = btn.getAttribute('data-theme-value');
+                try { localStorage.setItem('theme', v); } catch (e) {}
+                document.documentElement.setAttribute('data-theme', v);
+                syncMeta();
+            });
+        });
+        syncMeta();
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').addEventListener) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncMeta);
+        }
+    })();
 
     // Service Worker Registration
     if ('serviceWorker' in navigator) {

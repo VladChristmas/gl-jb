@@ -45,7 +45,7 @@ class OrderService:
                     Order.description.ilike(f'%{search}%')
                 )
             )
-        return query.order_by(Order.created_at.desc()).paginate(
+        return query.order_by(Order.created_at.desc(), Order.id.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
 
@@ -77,7 +77,7 @@ class OrderService:
             .all()
         )
 
-        pagination = query.order_by(Order.created_at.desc()).paginate(
+        pagination = query.order_by(Order.created_at.desc(), Order.id.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
 

@@ -3,6 +3,7 @@
 {% block title %}Импорт Excel{% endblock %}
 
 {% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
 <div class="page-header">
     <h1>Импорт данных из Excel</h1>
     <a href="{{ url_for('admin.import_mappings') }}" class="btn btn-secondary">Настроить маппинги</a>
@@ -10,7 +11,8 @@
 
 <div class="card">
     <h2>Загрузить файл</h2>
-    <form method="post" enctype="multipart/form-data" class="form-grid">
+        <form method="post" enctype="multipart/form-data" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group full-width">
             <label for="mapping_id">Маппинг *</label>
             <select id="mapping_id" name="mapping_id" required>

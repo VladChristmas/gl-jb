@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Слишком много запросов{% endblock %}
+
+{% block content %}
+<div class="empty-state" style="margin-top: 80px;">
+    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <polyline points="12 7 12 12 15 14"/>
+    </svg>
+    <div class="empty-state-title">429 — Слишком много запросов</div>
+    <div class="empty-state-text">Вы действуете слишком часто. Подождите минуту и повторите попытку.</div>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary" style="margin-top: 24px;">На главную</a>
+</div>
+{% endblock %}

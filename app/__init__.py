@@ -91,6 +91,27 @@ def create_app():
         from flask import render_template
         return render_template('errors/404.html'), 404
 
+    @app.errorhandler(400)
+    def bad_request(e):
+        from flask import render_template
+        desc = getattr(e, 'description', '') or ''
+        hint = None
+        if 'CSRF' in desc:
+            hint = 'Защита от поддельных запросов не пропустила форму. Обновите страницу и повторите действие.'
+        elif 'too large' in desc.lower():
+            hint = 'Файл слишком большой. Максимальный размер — 16 МБ.'
+        return render_template('errors/400.html', hint=hint), 400
+
+    @app.errorhandler(413)
+    def too_large(e):
+        from flask import render_template
+        return render_template('errors/413.html'), 413
+
+    @app.errorhandler(429)
+    def rate_limited(e):
+        from flask import render_template
+        return render_template('errors/429.html'), 429
+
     @app.errorhandler(500)
     def server_error(e):
         from flask import render_template
