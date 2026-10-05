@@ -10,6 +10,29 @@ class TestHealth:
         assert data['database'] == 'ok'
 
 
+class TestApiFiles:
+    def test_unauthorized_without_token(self, client):
+        resp = client.get('/admin/api/files')
+        assert resp.status_code == 401
+
+    def test_wrong_token_rejected(self, client):
+        resp = client.get('/admin/api/files', headers={'X-Admin-Token': 'WRONG'})
+        assert resp.status_code == 401
+
+    def test_token_header_accepted(self, client):
+        from config import ADMIN_TOKEN
+        resp = client.get('/admin/api/files', headers={'X-Admin-Token': ADMIN_TOKEN})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert 'files' in data
+        assert 'count' in data
+
+    def test_admin_session_accepted(self, admin_client):
+        resp = admin_client.get('/admin/api/files')
+        assert resp.status_code == 200
+        assert 'files' in resp.get_json()
+
+
 class TestImportPages:
     def test_import_excel_has_back_button_and_csrf(self, admin_client):
         resp = admin_client.get('/admin/import_excel')

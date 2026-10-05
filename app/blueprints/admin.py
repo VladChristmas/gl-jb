@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, jsonify
 from app.extensions import limiter
 from app.services.user_service import UserService
 from app.services.order_service import OrderService
@@ -7,7 +7,7 @@ from app.services.email_service import EmailService
 from app.services.dashboard_service import DashboardService
 from app.models import ImportMapping
 from app.extensions import db
-from config import UPLOAD_FOLDER
+from config import UPLOAD_FOLDER, ADMIN_TOKEN
 import os
 import io
 import openpyxl
@@ -46,6 +46,30 @@ def dashboard():
     stats['upload_size'] = upload_size
 
     return render_template('admin_dashboard.html', stats=stats)
+
+
+@admin_bp.route('/api/files')
+def api_files():
+    """List uploaded files — used by the PC sync script.
+
+    Auth: admin session OR X-Admin-Token header with the superadmin token.
+    """
+    token = request.headers.get('X-Admin-Token', '')
+    if not session.get('is_admin') and token != ADMIN_TOKEN:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    folder = os.path.abspath(UPLOAD_FOLDER)
+    files = []
+    if os.path.isdir(folder):
+        for name in sorted(os.listdir(folder)):
+            fp = os.path.join(folder, name)
+            if os.path.isfile(fp):
+                files.append({
+                    'name': name,
+                    'size': os.path.getsize(fp),
+                    'mtime': int(os.path.getmtime(fp)),
+                })
+    return jsonify({'files': files, 'count': len(files)})
 
 
 @admin_bp.route('/users', methods=['GET', 'POST'])
