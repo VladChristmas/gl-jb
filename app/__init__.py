@@ -106,11 +106,15 @@ def create_app():
         try:
             db.create_all()
             app.logger.info('Database tables created/verified')
+        except Exception as e:
+            # Multiple gunicorn workers may race to create tables — benign
+            app.logger.info(f'Database tables already exist ({type(e).__name__})')
+        try:
             from sqlalchemy import inspect
             inspector = inspect(db.engine)
             tables = inspector.get_table_names()
             app.logger.info(f'Tables in database: {tables}')
         except Exception as e:
-            app.logger.error(f'Database initialization error: {e}')
+            app.logger.error(f'Database inspection error: {e}')
 
     return app
