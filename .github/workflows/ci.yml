@@ -50,6 +50,7 @@ jobs:
           cat mypy_output.txt
       
       - name: Upload MyPy output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mypy-output
@@ -103,6 +104,7 @@ jobs:
           pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing 2>&1 | tee test_output.txt || true
       
       - name: Upload test output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-output
@@ -111,9 +113,29 @@ jobs:
       
       - name: Run tests with PostgreSQL
         run: |
-          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
+          echo "=== PG diagnostics ==="
+          python -c "
+          import psycopg2, traceback
+          try:
+              conn = psycopg2.connect('postgresql://gl_jb_user:testpass@localhost:5432/gl_jb', connect_timeout=10)
+              print('PG connect OK')
+              cur = conn.cursor(); cur.execute('SELECT version()'); print(cur.fetchone()[0]); conn.close()
+          except Exception:
+              traceback.print_exc()
+          "
+          echo "=== Running tests ==="
+          set -o pipefail
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing 2>&1 | tee pg_test_output.txt
         env:
           DATABASE_URL: postgresql://gl_jb_user:testpass@localhost:5432/gl_jb
+
+      - name: Upload PG test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-test-output
+          path: pg_test_output.txt
+          retention-days: 1
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
