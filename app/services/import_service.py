@@ -3,6 +3,7 @@ from datetime import datetime
 import openpyxl
 from werkzeug.datastructures import FileStorage
 
+from app.constants import PHOTO_REQUIRED_TOPICS
 from app.extensions import db
 from app.models.import_mapping import ImportMapping
 from app.models.order import Order
@@ -243,9 +244,22 @@ class ImportService:
                 if not order:
                     # Complaint ID may hold the order number instead of external ID
                     order = Order.query.filter_by(order_number=ext_id).first()
-                created = False
+
+                # Значение подтемы из файла (для определения, нужно ли фото)
+                topic_value = ""
+                for model_field, col_idx in field_indices.items():
+                    if model_field == "complaint_text" and row[col_idx] is not None:
+                        topic_value = str(row[col_idx]).strip()
+
                 if not order:
-                    # Заказ не найден — создаём заказ-заглушку, чтобы жалоба не потерялась
+                    needs_photo = any(t in topic_value for t in PHOTO_REQUIRED_TOPICS)
+                    if not needs_photo:
+                        # Заказ не найден и подтема не требует фото — пропускаем
+                        skipped += 1
+                        errors.append(f'Строка {row_idx}: заказ с ID "{ext_id}" не найден')
+                        continue
+                    # Заказ не найден, но подтема требует фото — заказ-заглушка,
+                    # чтобы жалоба с фото-подтемой не потерялась
                     user = User.query.filter_by(fio=ImportService.PLACEHOLDER_USER_FIO).first()
                     if not user:
                         user = UserService.create_user(ImportService.PLACEHOLDER_USER_FIO)
@@ -253,9 +267,11 @@ class ImportService:
                         user_id=user.id,
                         external_id=ext_id,
                         order_number=f"Жалоба {ext_id[:8]}",
+                        complaint_text=topic_value,
                     )
                     db.session.add(order)
-                    created = True
+                    imported += 1
+                    continue
 
                 for model_field, col_idx in field_indices.items():
                     value = row[col_idx]
@@ -280,10 +296,7 @@ class ImportService:
                             elif hasattr(value, "isoformat"):
                                 order.complaint_date = value
 
-                if created:
-                    imported += 1
-                else:
-                    updated += 1
+                updated += 1
 
         db.session.commit()
 

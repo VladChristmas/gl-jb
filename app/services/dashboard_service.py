@@ -1,22 +1,18 @@
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, distinct, func
+from sqlalchemy import case, distinct, func, or_
 
+from app.constants import PHOTO_REQUIRED_TOPICS
 from app.extensions import db
 from app.models.order import Order
 from app.models.photo import Photo
 from app.models.user import User
 
-# Complaint topics that require photo evidence from the courier
-PHOTO_REQUIRED_TOPICS = frozenset(
-    {
-        "Товар побит/вскрыт",
-        "Не донесли часть товаров из заказа",
-        "Не учли комментарий к заказу",
-        "Принесли чужой заказ",
-    }
-)
+
+def _photo_required_clause():
+    """Заказы, чья жалоба содержит подтему из списка «нужно фото»."""
+    return or_(*[Order.complaint_text.ilike(f"%{topic}%") for topic in PHOTO_REQUIRED_TOPICS])
 
 
 def _to_number(value: object) -> float:
@@ -40,14 +36,18 @@ class DashboardService:
 
         orders_without_photos = orders_count - orders_with_photos
 
-        # Заказы, ждущие подтверждения (без фото) — последние 20
+        # Заказы, которые ждут фото-подтверждения: подтема «нужно фото» и фото ещё нет
         pending_orders = (
             db.session.query(Order, User)
             .join(User, Order.user_id == User.id)
             .outerjoin(Photo, Photo.order_id == Order.id)
-            .filter(Photo.id.is_(None))
-            .order_by(Order.created_at.desc(), Order.id.desc())
-            .limit(20)
+            .filter(Photo.id.is_(None), _photo_required_clause())
+            .order_by(
+                case((Order.address.is_(None) | (Order.address == ""), 1), else_=0),
+                Order.created_at.desc(),
+                Order.id.desc(),
+            )
+            .limit(100)
             .all()
         )
 
@@ -78,6 +78,7 @@ class DashboardService:
             "photos_count": photos_count,
             "orders_with_photos": orders_with_photos,
             "orders_without_photos": orders_without_photos,
+            "pending_count": DashboardService.pending_orders_count(),
             "completion_rate": completion_rate,
             "pending_orders": pending_orders,
             "daily_orders": daily_orders,
@@ -87,10 +88,14 @@ class DashboardService:
 
     @staticmethod
     def pending_orders_count() -> int:
-        """Сколько заказов ждут подтверждения (без фото)."""
-        orders_count = db.session.query(func.count(Order.id)).scalar() or 0
-        with_photos = db.session.query(func.count(distinct(Photo.order_id))).scalar() or 0
-        return orders_count - with_photos
+        """Сколько заказов ждут фото-подтверждения (подтема требует фото, фото нет)."""
+        return (
+            db.session.query(func.count(Order.id))
+            .outerjoin(Photo, Photo.order_id == Order.id)
+            .filter(Photo.id.is_(None), _photo_required_clause())
+            .scalar()
+            or 0
+        )
 
     @staticmethod
     def best_couriers(limit: int = 5) -> list[dict]:

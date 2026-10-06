@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import datetime
 
 import openpyxl
@@ -520,6 +521,29 @@ class TestComplaintPlaceholder:
             Order.query.filter_by(external_id="7fe5e71f-15ba-4734-a44c-a4d0e9b7276d").count() == 1
         )
 
+    def test_non_photo_topic_skipped_without_placeholder(self, db_session, regular_user):
+        mapping = ImportMapping(
+            name="complaints-skip",
+            type="complaints",
+            id_column="Номер заказа",
+            field_mapping={"Подтема": "complaint_text"},
+            skip_first_row=True,
+        )
+        db_session.add(mapping)
+        db_session.commit()
+
+        file = make_file(
+            ["Номер заказа", "Подтема"],
+            [["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "Предиктив доставка"]],
+        )
+        result = ImportService.import_with_mapping(file, mapping)
+        # Заказа нет, подтема не требует фото — пропускаем без заглушки
+        assert result["imported"] == 0
+        assert result["skipped"] == 1
+        assert (
+            Order.query.filter_by(external_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").count() == 0
+        )
+
     def test_second_topic_appended_not_overwritten(self, db_session, regular_user):
         mapping = ImportMapping(
             name="complaints-append",
@@ -593,38 +617,82 @@ class TestDashboardRestructure:
         assert "Подтверждено" not in html
         assert "Последние фото" not in html
         assert "Последние заказы" not in html
+        assert "Ждут подтверждения" not in html
         assert "Импорт Excel" not in html
         assert "Маппинги" not in html
         assert "Экспорт" not in html
 
     def test_pending_block_shows_count_and_links(self, admin_client, db_session, regular_user):
         db_session.add(
-            Order(user_id=regular_user.id, order_number="PEND-1", created_at=datetime.utcnow())
+            Order(
+                user_id=regular_user.id,
+                order_number="PEND-1",
+                courier_fio="Курьер Ожидаемый",
+                address="ул. Фото, 1",
+                delivered_at="05.10.2026 12:00",
+                complaint_text="Товар побит/вскрыт",
+                created_at=datetime.utcnow(),
+            )
         )
         db_session.add(
-            Order(user_id=regular_user.id, order_number="PEND-2", created_at=datetime.utcnow())
+            Order(
+                user_id=regular_user.id,
+                order_number="PEND-2",
+                complaint_text="Не учли комментарий к заказу",
+                created_at=datetime.utcnow(),
+            )
+        )
+        # Заказ без фото-подтемы — в блок НЕ попадает
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="PEND-X",
+                complaint_text="Предиктив доставка",
+            )
         )
         db_session.commit()
 
         html = admin_client.get("/admin/").get_data(as_text=True)
-        assert "Ждут подтверждения" in html
+        assert "Ожидают фото" in html
         assert 'id="pending-count"' in html
         assert 'id="stat-pending"' in html
-        # Оба заказа без фото — показаны и кликабельны
+        # Оба заказа с фото-подтемой показаны, строки содержат ФИО/адрес/время
         assert "PEND-1" in html
         assert "PEND-2" in html
-        assert 'href="/admin/orders/edit/' in html
+        assert "Курьер Ожидаемый" in html
+        assert "ул. Фото, 1" in html
+        assert "05.10.2026 12:00" in html
+        # Заказ без фото-подтемы не показывается
+        assert "PEND-X" not in html
+        # Счётчик в карточке и в бейдже = 2
+        m = re.search(r'id="pending-count"[^>]*>\s*(\d+)', html)
+        assert m and int(m.group(1)) == 2
         # Ссылка на список всех заказов без фото
         assert "photo_filter=without_photos" in html
+        # Клик ведёт на страницу заказа
+        assert 'href="/admin/orders/edit/' in html
 
     def test_pending_count_api(self, admin_client, db_session, regular_user):
-        db_session.add(Order(user_id=regular_user.id, order_number="PEND-3"))
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="PEND-3",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="PEND-4",
+                complaint_text="Предиктив доставка",
+            )
+        )
         db_session.commit()
 
-        # С админ-сессией — 200 и живой счётчик
+        # С админ-сессией — 200 и живой счётчик (только фото-подтемы)
         resp = admin_client.get("/admin/api/pending_count")
         assert resp.status_code == 200
-        assert resp.get_json()["pending"] >= 1
+        assert resp.get_json()["pending"] == 1
 
         # После логаута — 403
         admin_client.get("/admin/logout")
@@ -648,8 +716,8 @@ class TestDashboardRestructure:
         html = admin_client.get("/admin/").get_data(as_text=True)
         idx_pickers = html.index("Лучшие сборщики")
         idx_couriers = html.index("Лучшие курьеры")
-        idx_pending = html.index("Ждут подтверждения")
-        # Рейтинги рядом, «Ждут подтверждения» — ниже
+        idx_pending = html.index('id="pending-count"')
+        # Рейтинги рядом, «Ожидают фото» — ниже
         assert idx_pickers < idx_pending
         assert idx_couriers < idx_pending
         # Оба блока идут подряд (между ними нет других секций)

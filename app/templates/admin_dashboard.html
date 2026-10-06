@@ -15,8 +15,8 @@
         <div class="stat-label">Курьеров</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number" id="stat-pending" style="color: {% if stats.orders_without_photos > 0 %}var(--warning){% else %}var(--success){% endif %};">
-            {{ stats.orders_without_photos }}
+        <div class="stat-number" id="stat-pending" style="color: {% if stats.pending_count > 0 %}var(--warning){% else %}var(--success){% endif %};">
+            {{ stats.pending_count }}
         </div>
         <div class="stat-label">Ожидают фото</div>
     </div>
@@ -117,41 +117,54 @@
     </div>
 </div>
 
-<!-- Orders awaiting confirmation -->
+<!-- Orders awaiting photo confirmation -->
 <div class="card">
     <div class="page-header" style="margin-bottom: 8px;">
-        <h2 style="margin: 0;">Ждут подтверждения</h2>
+        <h2 style="margin: 0;">Ожидают фото</h2>
         <span class="badge badge-warning" id="pending-count" style="font-size: 16px; padding: 6px 14px;">
-            {{ stats.orders_without_photos }}
+            {{ stats.pending_count }}
         </span>
     </div>
     <p class="help-text" style="margin-top: 0;">
-        Заказы без фото-подтверждения — нажмите на заказ, чтобы открыть подробную информацию
+        Заказы с подтемами, по которым нужно фото-подтверждение. Нажмите на заказ, чтобы открыть подробную информацию.
     </p>
     {% if stats.pending_orders %}
-    <div class="activity-list">
-        {% for order, user in stats.pending_orders %}
-        <div class="activity-item">
-            <div class="activity-icon">⏳</div>
-            <div class="activity-body">
-                <div class="activity-title">
-                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" style="color: inherit;">
-                        {{ order.order_number or '#' ~ order.id }}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ФИО курьера</th>
+                <th>Адрес</th>
+                <th>Время</th>
+                <th>Подтема</th>
+                <th>Заказ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order, user in stats.pending_orders %}
+            <tr>
+                <td><strong>{{ order.courier_fio or user.fio }}</strong></td>
+                <td>{{ order.address or '—' }}</td>
+                <td>{{ order.delivered_at or '—' }}</td>
+                <td>
+                    <small style="color: var(--text-secondary);">
+                        {{ order.complaint_text[:60] }}{% if order.complaint_text|length > 60 %}…{% endif %}
+                    </small>
+                </td>
+                <td>
+                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">
+                        {{ order.order_number or '#' ~ order.id }} →
                     </a>
-                </div>
-                <div class="activity-meta">{{ user.fio }} · {{ order.created_at.strftime('%d.%m %H:%M') if order.created_at else '' }}</div>
-            </div>
-            <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">→</a>
-        </div>
-        {% endfor %}
-    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     <p class="help-text" style="margin-top: 8px;">
-        Показаны последние {{ stats.pending_orders|length }} из {{ stats.orders_without_photos }} —
-        <a href="{{ url_for('admin.orders', photo_filter='without_photos') }}">все заказы без фото →</a>
+        <a href="{{ url_for('admin.orders', photo_filter='without_photos') }}">Все заказы без фото →</a>
     </p>
     {% else %}
     <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-text">Все заказы подтверждены — ждать нечего</div>
+        <div class="empty-state-text">Все заказы с фото-подтемами подтверждены</div>
     </div>
     {% endif %}
 </div>
