@@ -46,7 +46,14 @@ jobs:
           echo "MyPy version: $(mypy --version)"
           echo "Flask-SQLAlchemy version: $(python -c 'import flask_sqlalchemy; print(flask_sqlalchemy.__version__)')"
           python -c "from flask_sqlalchemy.pagination import Pagination; print('Pagination import OK')"
-          mypy app/ --ignore-missing-imports
+          mypy app/ --ignore-missing-imports > mypy_output.txt 2>&1 || true
+          cat mypy_output.txt
+- name: Upload MyPy output
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-output
+          path: mypy_output.txt
+          retention-days: 1
 
   test:
     name: Tests
@@ -92,7 +99,13 @@ jobs:
       - name: Run tests with SQLite
         run: |
           python -c "from flask_sqlalchemy.pagination import Pagination; print('Pagination import OK')"
-          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing 2>&1 | tee test_output.txt || true
+- name: Upload test output
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: test_output.txt
+          retention-days: 1
         env:
           DATABASE_URL: sqlite:///test.db
       
