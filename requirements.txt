@@ -13,3 +13,4 @@ celery==5.4.0
 redis==5.0.1
 flask-talisman==1.1.0
 python-magic==0.4.27
+flask-sqlalchemy==3.1.1
