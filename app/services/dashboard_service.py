@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 
 from sqlalchemy import distinct, func
@@ -6,6 +7,24 @@ from app.extensions import db
 from app.models.order import Order
 from app.models.photo import Photo
 from app.models.user import User
+
+# Complaint topics that require photo evidence from the courier
+PHOTO_REQUIRED_TOPICS = frozenset(
+    {
+        "Товар побит/вскрыт",
+        "Не донесли часть товаров из заказа",
+        "Не учли комментарий к заказу",
+        "Принесли чужой заказ",
+    }
+)
+
+
+def _to_number(value: object) -> float:
+    """Extract first number from a string like '5 мин' / '12,5/час'."""
+    if value is None:
+        return 0.0
+    match = re.search(r"\d+(?:[.,]\d+)?", str(value))
+    return float(match.group(0).replace(",", ".")) if match else 0.0
 
 
 class DashboardService:
@@ -68,6 +87,9 @@ class DashboardService:
             (orders_with_photos / orders_count * 100) if orders_count > 0 else 0, 1
         )
 
+        # Best pickers (top-5 by speed + wait score)
+        best_pickers = DashboardService.picker_stats()[:5]
+
         return {
             "users_count": users_count,
             "orders_count": orders_count,
@@ -79,6 +101,7 @@ class DashboardService:
             "recent_photos": recent_photos,
             "daily_orders": daily_orders,
             "top_couriers": top_couriers,
+            "best_pickers": best_pickers,
         }
 
     @staticmethod
@@ -106,19 +129,24 @@ class DashboardService:
         for row in agg_rows:
             fio = str(row.picker_fio).strip()
             latest = latest_map.get(row.latest_id)
+            wait_time = (latest.wait_time if latest else None) or "—"
+            pick_speed = (latest.pick_speed if latest else None) or "—"
+            # Рейтинг: чем больше скорость сборки и ожидание — тем лучше
+            score = round(_to_number(pick_speed) + _to_number(wait_time), 1)
             result.append(
                 {
                     "fio": fio,
                     "pick_count": (
                         row.max_pick_count if row.max_pick_count is not None else row.orders_count
                     ),
-                    "wait_time": (latest.wait_time if latest else None) or "—",
-                    "pick_speed": (latest.pick_speed if latest else None) or "—",
+                    "wait_time": wait_time,
+                    "pick_speed": pick_speed,
+                    "score": score,
                     "orders_count": row.orders_count,
                     "user": users_map.get(fio.lower()),
                 }
             )
-        result.sort(key=lambda item: item["pick_count"], reverse=True)
+        result.sort(key=lambda item: (item["score"], item["pick_count"]), reverse=True)
         return result
 
     @staticmethod
@@ -141,6 +169,7 @@ class DashboardService:
                 "order_number": order.order_number or f"#{order.id}",
                 "complaint_text": order.complaint_text or "",
                 "has_photos": bool(order.photos),
+                "photo_required": (order.complaint_text or "").strip() in PHOTO_REQUIRED_TOPICS,
             }
             for order, user in rows
         ]

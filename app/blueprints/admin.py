@@ -15,9 +15,10 @@ from flask import (
     url_for,
 )
 from openpyxl import Workbook
+from sqlalchemy import func
 
 from app.extensions import db
-from app.models import ImportMapping
+from app.models import ImportMapping, User
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.import_service import ImportService
@@ -64,8 +65,22 @@ def dashboard():
 @admin_required
 def pickers():
     pickers_data = DashboardService.picker_stats()
+    return render_template("admin_pickers.html", pickers=pickers_data)
+
+
+@admin_bp.route("/couriers")
+@admin_required
+def couriers():
     complaints_data = DashboardService.complaint_couriers()
-    return render_template("admin_pickers.html", pickers=pickers_data, complaints=complaints_data)
+    users_count = db.session.query(func.count(User.id)).scalar() or 0
+    awaiting_photo = sum(1 for row in complaints_data if not row["has_photos"])
+    return render_template(
+        "admin_couriers.html",
+        complaints=complaints_data,
+        users_count=users_count,
+        orders_with_complaints=len(complaints_data),
+        awaiting_photo=awaiting_photo,
+    )
 
 
 @admin_bp.route("/api/files")

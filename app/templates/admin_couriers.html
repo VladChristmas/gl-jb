@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд курьеров{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+<div class="page-header">
+    <h1>Дашборд курьеров</h1>
+    <div class="user-info">
+        <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">Пользователи</a>
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Все заказы</a>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ users_count }}</div>
+        <div class="stat-label">Курьеров</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ orders_with_complaints }}</div>
+        <div class="stat-label">Заказов с жалобами</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color: {% if awaiting_photo > 0 %}var(--warning){% else %}var(--success){% endif %};">
+            {{ awaiting_photo }}
+        </div>
+        <div class="stat-label">Ждут фото</div>
+    </div>
+</div>
+
+<!-- Complaints: who delivered -->
+<div class="card">
+    <h2>⚠️ Заказы с жалобами</h2>
+    <p class="help-text" style="margin-top: 0;">
+        Фото запрашивается только для подтем: «Товар побит/вскрыт», «Не донесли часть товаров из заказа»,
+        «Не учли комментарий к заказу», «Принесли чужой заказ»
+    </p>
+    {% if complaints %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ФИО курьера</th>
+                <th>Адрес</th>
+                <th>Время</th>
+                <th>ID</th>
+                <th>Номер заказа</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in complaints %}
+            <tr>
+                <td>
+                    <strong>{{ c.courier }}</strong>
+                    <br><small style="color: var(--text-secondary);">{{ c.complaint_text[:80] }}{% if c.complaint_text|length > 80 %}…{% endif %}</small>
+                </td>
+                <td>{{ c.address }}</td>
+                <td>{{ c.delivered_at }}</td>
+                <td><code>{{ c.external_id }}</code></td>
+                <td>{{ c.order_number }}</td>
+                <td>
+                    {% if c.photo_required %}
+                    <a href="{{ url_for('user.order_photos', order_id=c.order_id) }}" class="btn btn-sm btn-primary">
+                        📷 {% if c.has_photos %}Фото{% else %}Запросить фото{% endif %}
+                    </a>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="help-text" style="margin-top: 8px;">
+        Для каждого заказа с жалобой показан курьер (столбец «Курьер»), адрес, время доставки, ID и номер заказа.
+        Загружено заказов: {{ complaints|length }}.
+    </p>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-icon" style="width: 48px; height: 48px; margin-bottom: 12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+        </div>
+        <div class="empty-state-title">Жалоб нет</div>
+        <div class="empty-state-text">Импортируйте файл жалоб — здесь появятся курьеры по каждому заказу.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

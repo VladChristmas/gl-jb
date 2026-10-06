@@ -15,14 +15,6 @@
         <div class="stat-label">Курьеров</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number">{{ stats.orders_count }}</div>
-        <div class="stat-label">Всего заказов</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{{ stats.orders_with_photos }}</div>
-        <div class="stat-label">Подтверждено</div>
-    </div>
-    <div class="stat-card">
         <div class="stat-number" style="color: {% if stats.orders_without_photos > 0 %}var(--warning){% else %}var(--success){% endif %};">
             {{ stats.orders_without_photos }}
         </div>
@@ -53,22 +45,45 @@
         <a href="{{ url_for('admin.orders') }}" class="nav-item">
             <span>📋</span> Все заказы
         </a>
-        <a href="{{ url_for('admin.import_excel') }}" class="nav-item">
-            <span>📥</span> Импорт Excel
-        </a>
-        <a href="{{ url_for('admin.upload_excel') }}" class="nav-item">
-            <span>📊</span> Загрузить Excel
-        </a>
-        <a href="{{ url_for('admin.import_mappings') }}" class="nav-item">
-            <span>⚙️</span> Маппинги
-        </a>
         <a href="{{ url_for('admin.pickers') }}" class="nav-item">
             <span>📦</span> Сборщики
         </a>
-        <a href="{{ url_for('admin.export_excel') }}" class="nav-item">
-            <span>📤</span> Экспорт
+        <a href="{{ url_for('admin.couriers') }}" class="nav-item">
+            <span>🚚</span> Курьеры
         </a>
     </nav>
+</div>
+
+<!-- Best Pickers -->
+<div class="card">
+    <div class="page-header" style="margin-bottom: 12px;">
+        <h2 style="margin: 0;">Лучшие сборщики</h2>
+        <a href="{{ url_for('admin.pickers') }}" class="btn btn-sm btn-secondary">Все сборщики →</a>
+    </div>
+    <p class="help-text" style="margin-top: 0;">
+        Рейтинг = скорость сборки + ожидание — чем больше, тем лучше
+    </p>
+    {% if stats.best_pickers %}
+    <div class="activity-list">
+        {% for picker in stats.best_pickers %}
+        <div class="activity-item">
+            <div class="activity-icon">{{ loop.index }}</div>
+            <div class="activity-body">
+                <div class="activity-title">{{ picker.fio }}</div>
+                <div class="activity-meta">
+                    Скорость: {{ picker.pick_speed }} · Ожидание: {{ picker.wait_time }}
+                    · Собрано: {{ picker.pick_count }}
+                </div>
+            </div>
+            <div class="badge badge-success">{{ picker.score }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-text">Нет данных о сборщиках — импортируйте файл со столбцом «Сборщик»</div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="dashboard-grid">
@@ -117,30 +132,6 @@
         </div>
         {% endif %}
     </div>
-</div>
-
-<!-- Recent Photos -->
-<div class="card">
-    <h2>Последние фото</h2>
-    {% if stats.recent_photos %}
-    <div class="photos-grid">
-        {% for photo, order, user in stats.recent_photos %}
-        <div class="photo-item">
-            <a href="{{ url_for('main.uploaded_file', filename=photo.filename) }}" target="_blank" class="photo-link">
-                <img src="{{ url_for('main.uploaded_file', filename=photo.filename) }}" alt="{{ photo.original_filename }}" loading="lazy">
-            </a>
-            <div class="photo-meta">
-                <p>{{ order.order_number or '#' ~ order.id }}</p>
-                <small>{{ user.fio }} · {{ photo.uploaded_at.strftime('%d.%m %H:%M') if photo.uploaded_at else '' }}</small>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-text">Фото пока не загружены</div>
-    </div>
-    {% endif %}
 </div>
 
 <!-- Storage Info -->
