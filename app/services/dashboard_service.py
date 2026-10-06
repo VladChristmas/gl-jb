@@ -99,20 +99,12 @@ class DashboardService:
 
     @staticmethod
     def best_couriers(limit: int = 5) -> list[dict]:
-        """Лучшие курьеры: меньше обращений (жалоб) на перевезённые заказы — лучше."""
+        """Лучшие курьеры: меньше жалоб по подтемам «нужно фото» — лучше."""
         rows = (
             db.session.query(
                 Order.courier_fio,
                 func.count(Order.id).label("orders_count"),
-                func.sum(
-                    case(
-                        (
-                            Order.complaint_text.isnot(None) & (Order.complaint_text != ""),
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ).label("complaints_count"),
+                func.sum(case((_photo_required_clause(), 1), else_=0)).label("complaints_count"),
             )
             .filter(Order.courier_fio.isnot(None), Order.courier_fio != "")
             .group_by(Order.courier_fio)

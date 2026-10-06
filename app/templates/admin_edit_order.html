@@ -9,6 +9,22 @@
 </header>
 
 <div class="card">
+    <h3>Описание заказа</h3>
+    <p><strong>Номер заказа:</strong> {{ order.order_number or '—' }}</p>
+    <p><strong>ID заказа:</strong> <code>{{ order.external_id or '—' }}</code></p>
+    <p><strong>Подтема:</strong> {{ order.complaint_text or '—' }}</p>
+    <p><strong>Курьер:</strong> {{ order.courier_fio or '—' }}</p>
+    <p><strong>Адрес заказа:</strong> {{ order.address or '—' }}</p>
+    <p><strong>Время заказа:</strong> {{ order.delivered_at or '—' }}</p>
+    <p><strong>Пользователь:</strong> {{ order.user.fio }} (токен: {{ order.user.token }})</p>
+    <p><strong>Создан:</strong> {{ order.created_at }}</p>
+    <p><strong>Фото:</strong> {{ order.photos|length }}</p>
+    {% if order.photos %}
+    <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+    {% endif %}
+</div>
+
+<div class="card">
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
@@ -21,15 +37,5 @@
         </div>
         <button type="submit" class="btn btn-primary">Сохранить</button>
     </form>
-</div>
-
-<div class="card" style="margin-top: 1rem;">
-    <h3>Информация</h3>
-    <p><strong>Пользователь:</strong> {{ order.user.fio }} (токен: {{ order.user.token }})</p>
-    <p><strong>Создан:</strong> {{ order.created_at }}</p>
-    <p><strong>Фото:</strong> {{ order.photos|length }}</p>
-    {% if order.photos %}
-    <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
-    {% endif %}
 </div>
 {% endblock %}

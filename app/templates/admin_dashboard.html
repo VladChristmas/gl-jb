@@ -94,7 +94,7 @@
             <a href="{{ url_for('admin.couriers') }}" class="btn btn-sm btn-secondary">Все →</a>
         </div>
         <p class="help-text" style="margin-top: 0;">
-            Меньше обращений на перевезённые заказы — тем лучше
+            Меньше жалоб по подтемам «нужно фото» — тем лучше
         </p>
         {% if stats.best_couriers %}
         <div class="activity-list">
@@ -160,7 +160,7 @@
         </tbody>
     </table>
     <p class="help-text" style="margin-top: 8px;">
-        <a href="{{ url_for('admin.orders', photo_filter='without_photos') }}">Все заказы без фото →</a>
+        <a href="{{ url_for('admin.orders') }}">Все заказы (с фото и ждущие фото) →</a>
     </p>
     {% else %}
     <div class="empty-state" style="padding: 24px;">

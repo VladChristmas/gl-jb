@@ -1,4 +1,4 @@
-from app.models import User
+from app.models import Order, User
 
 
 class TestAuthRoutes:
@@ -50,10 +50,27 @@ class TestAdminRoutes:
         assert resp.status_code == 200
         assert b"Test User" in resp.data
 
-    def test_admin_orders_page(self, admin_client, sample_order):
+    def test_admin_orders_page(self, admin_client, db_session, regular_user, sample_order):
+        db_session.add_all(
+            [
+                Order(
+                    user_id=regular_user.id,
+                    order_number="VISIBLE-R",
+                    complaint_text="Товар побит/вскрыт",
+                ),
+                Order(
+                    user_id=regular_user.id,
+                    order_number="IRRELEVANT-R",
+                    complaint_text="Предиктив доставка",
+                ),
+            ]
+        )
+        db_session.commit()
         resp = admin_client.get("/admin/orders")
         assert resp.status_code == 200
-        assert b"TEST-001" in resp.data
+        # Заказ с фото-подтемой показан, без фото-подтемы — скрыт
+        assert b"VISIBLE-R" in resp.data
+        assert b"IRRELEVANT-R" not in resp.data
 
     def test_admin_create_user(self, admin_client):
         resp = admin_client.post("/admin/users", data={"fio": "New User"})

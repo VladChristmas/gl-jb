@@ -73,7 +73,10 @@ def pickers():
 def couriers():
     complaints_data = DashboardService.complaint_couriers()
     users_count = db.session.query(func.count(User.id)).scalar() or 0
-    awaiting_photo = sum(1 for row in complaints_data if not row["has_photos"])
+    # Ждут фото: только подтемы «нужно фото» и фото ещё нет
+    awaiting_photo = sum(
+        1 for row in complaints_data if row["photo_required"] and not row["has_photos"]
+    )
     return render_template(
         "admin_couriers.html",
         complaints=complaints_data,

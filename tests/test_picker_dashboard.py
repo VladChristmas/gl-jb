@@ -5,7 +5,7 @@ from datetime import datetime
 import openpyxl
 import pytest
 
-from app.models import ImportMapping, Order, User
+from app.models import ImportMapping, Order, Photo, User
 from app.services.dashboard_service import DashboardService
 from app.services.import_service import ImportService
 
@@ -432,7 +432,7 @@ class TestBestCouriers:
                     user_id=regular_user.id,
                     order_number=f"BC-1-{i}",
                     courier_fio="Курьер с жалобами",
-                    complaint_text="Предиктив доставка" if i == 0 else None,
+                    complaint_text="Товар побит/вскрыт" if i == 0 else None,
                 )
             )
         for i in range(2):
@@ -480,6 +480,34 @@ class TestBestCouriers:
         db_session.commit()
 
         assert DashboardService.best_couriers() == []
+
+    def test_non_photo_complaint_not_counted(self, db_session, regular_user):
+        """Жалобы по другим подтемам не влияют на рейтинг лучших курьеров."""
+        for i in range(2):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-6-{i}",
+                    courier_fio="Курьер с обычными жалобами",
+                    complaint_text="Предиктив доставка",
+                )
+            )
+        for i in range(3):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-7-{i}",
+                    courier_fio="Курьер без жалоб",
+                )
+            )
+        db_session.commit()
+
+        best = DashboardService.best_couriers()
+        by_fio = {c["fio"]: c for c in best}
+        # Оба курьера без жалоб по фото-подтемам → побеждает больший маршрут
+        assert by_fio["Курьер с обычными жалобами"]["complaints_count"] == 0
+        assert by_fio["Курьер без жалоб"]["complaints_count"] == 0
+        assert best[0]["fio"] == "Курьер без жалоб"
 
 
 class TestComplaintPlaceholder:
@@ -667,8 +695,8 @@ class TestDashboardRestructure:
         # Счётчик в карточке и в бейдже = 2
         m = re.search(r'id="pending-count"[^>]*>\s*(\d+)', html)
         assert m and int(m.group(1)) == 2
-        # Ссылка на список всех заказов без фото
-        assert "photo_filter=without_photos" in html
+        # Ссылка на список всех заказов (с фото и ждущие фото)
+        assert "Все заказы (с фото и ждущие фото)" in html
         # Клик ведёт на страницу заказа
         assert 'href="/admin/orders/edit/' in html
 
@@ -752,3 +780,109 @@ class TestDashboardRestructure:
         html = admin_client.get("/admin/couriers").get_data(as_text=True)
         assert "table-keep-actions" in html
         assert "Запросить фото" in html
+
+
+class TestCouriersAwaitingCount:
+    STAT_RE = (
+        r'<div class="stat-number"[^>]*>\s*(\d+)\s*</div>\s*'
+        r'<div class="stat-label">Ожидают фото</div>'
+    )
+
+    def test_counts_only_photo_topics(self, admin_client, db_session, regular_user):
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="AW-1",
+                courier_fio="Курьер Фото",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="AW-2",
+                courier_fio="Курьер Обычный",
+                complaint_text="Предиктив доставка",
+            )
+        )
+        db_session.commit()
+
+        html = admin_client.get("/admin/couriers").get_data(as_text=True)
+        m = re.search(self.STAT_RE, html)
+        assert m and int(m.group(1)) == 1
+
+    def test_confirmed_photo_not_counted(self, admin_client, db_session, regular_user):
+        order = Order(
+            user_id=regular_user.id,
+            order_number="AW-3",
+            courier_fio="Курьер Подтвердил",
+            complaint_text="Не донесли часть товаров из заказа",
+        )
+        db_session.add(order)
+        db_session.commit()
+        db_session.add(Photo(order_id=order.id, filename="a.jpg", original_filename="a.jpg"))
+        db_session.commit()
+
+        html = admin_client.get("/admin/couriers").get_data(as_text=True)
+        m = re.search(self.STAT_RE, html)
+        assert m and int(m.group(1)) == 0
+
+
+class TestOrdersHistoryFilter:
+    def test_orders_page_hides_orders_without_photo_and_topic(
+        self, admin_client, db_session, regular_user
+    ):
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="ORD-WITH",
+                complaint_text="Принесли чужой заказ",
+            )
+        )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="ORD-SKIP",
+                complaint_text="Предиктив доставка",
+            )
+        )
+        db_session.add(Order(user_id=regular_user.id, order_number="ORD-PLAIN"))
+        db_session.commit()
+
+        html = admin_client.get("/admin/orders").get_data(as_text=True)
+        assert "ORD-WITH" in html
+        assert "ORD-SKIP" not in html
+        assert "ORD-PLAIN" not in html
+
+    def test_orders_page_shows_confirmed_photo_order(self, admin_client, db_session, regular_user):
+        order = Order(user_id=regular_user.id, order_number="ORD-PHOTO")
+        db_session.add(order)
+        db_session.commit()
+        db_session.add(Photo(order_id=order.id, filename="b.jpg", original_filename="b.jpg"))
+        db_session.commit()
+
+        html = admin_client.get("/admin/orders").get_data(as_text=True)
+        assert "ORD-PHOTO" in html
+
+
+class TestOrderDescription:
+    def test_edit_order_shows_details(self, admin_client, db_session, regular_user):
+        order = Order(
+            user_id=regular_user.id,
+            order_number="D-777",
+            external_id="uuid-d777",
+            courier_fio="Курьер Описания",
+            address="ул. Ленина, 5",
+            delivered_at="05.10.2026 12:00",
+            complaint_text="Товар побит/вскрыт",
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        html = admin_client.get(f"/admin/orders/edit/{order.id}").get_data(as_text=True)
+        assert "D-777" in html
+        assert "uuid-d777" in html
+        assert "Товар побит/вскрыт" in html
+        assert "Курьер Описания" in html
+        assert "ул. Ленина, 5" in html
+        assert "05.10.2026 12:00" in html

@@ -25,9 +25,9 @@
     <div class="form-group" style="min-width: 180px;">
         <label for="photo_filter">Статус фото</label>
         <select id="photo_filter" name="photo_filter">
-            <option value="">Все</option>
+            <option value="">С фото и ждущие фото</option>
             <option value="with_photos" {% if photo_filter == 'with_photos' %}selected{% endif %}>✅ С фото (подтверждены)</option>
-            <option value="without_photos" {% if photo_filter == 'without_photos' %}selected{% endif %}>⏳ Без фото</option>
+            <option value="without_photos" {% if photo_filter == 'without_photos' %}selected{% endif %}>⏳ Ожидают фото</option>
         </select>
     </div>
     <button type="submit" class="btn btn-secondary">Фильтровать</button>
@@ -109,7 +109,7 @@
                         <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
                     <div class="empty-state-title">Заказов нет</div>
-                    <div class="empty-state-text">Измените фильтры или импортируйте заказы из Excel.</div>
+                    <div class="empty-state-text">Показываются заказы с фото или ожидающие фото-подтверждения. Измените фильтры.</div>
                 </div>
             </td>
         </tr>

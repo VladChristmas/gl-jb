@@ -1,3 +1,5 @@
+from app.models.order import Order
+from app.models.photo import Photo
 from app.services.order_service import OrderService
 
 
@@ -22,9 +24,52 @@ class TestOrderService:
         assert pagination.items[0].order_number == "TEST-001"
 
     def test_get_all_orders(self, db_session, regular_user, sample_order):
-        pagination, orders = OrderService.get_all_orders(page=1, per_page=10)
-        assert pagination.total >= 1
-        assert len(orders) >= 1
+        # По умолчанию видны только заказы с фото или ждущие фото-подтемы
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="VISIBLE-1",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.commit()
+        pagination, orders = OrderService.get_all_orders(page=1, per_page=100)
+        numbers = [item["order"].order_number for item in orders]
+        assert "VISIBLE-1" in numbers
+        assert "TEST-001" not in numbers
+
+    def test_get_all_orders_hides_irrelevant(self, db_session, regular_user, sample_order):
+        """Заказ без фото и без фото-подтемы не показывается ни в одном фильтре."""
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="IRRELEVANT-1",
+                complaint_text="Предиктив доставка",
+            )
+        )
+        db_session.commit()
+        for photo_filter in ("", "with_photos", "without_photos"):
+            pagination, orders = OrderService.get_all_orders(
+                page=1, per_page=100, photo_filter=photo_filter
+            )
+            numbers = [item["order"].order_number for item in orders]
+            assert "IRRELEVANT-1" not in numbers
+
+    def test_get_all_orders_shows_with_photo(self, db_session, regular_user, sample_order):
+        """Заказ с фото виден по умолчанию и в фильтре «с фото»."""
+        photo = Photo(order_id=sample_order.id, filename="a.jpg", original_filename="a.jpg")
+        db_session.add(photo)
+        db_session.commit()
+        pagination, orders = OrderService.get_all_orders(page=1, per_page=100)
+        assert "TEST-001" in [item["order"].order_number for item in orders]
+        pagination, orders = OrderService.get_all_orders(
+            page=1, per_page=100, photo_filter="with_photos"
+        )
+        assert "TEST-001" in [item["order"].order_number for item in orders]
+        pagination, orders = OrderService.get_all_orders(
+            page=1, per_page=100, photo_filter="without_photos"
+        )
+        assert "TEST-001" not in [item["order"].order_number for item in orders]
 
     def test_update_order(self, db_session, sample_order):
         updated = OrderService.update_order(

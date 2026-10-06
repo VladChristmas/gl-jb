@@ -2,12 +2,13 @@ import time
 from typing import Any, cast
 
 from flask_sqlalchemy.pagination import Pagination
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 
 from app.extensions import db
 from app.models.order import Order
 from app.models.photo import Photo
 from app.models.user import User
+from app.services.dashboard_service import _photo_required_clause
 
 # Simple in-memory cache for dashboard stats
 _stats_cache: dict[str, Any] = {"data": None, "ts": 0}
@@ -78,7 +79,13 @@ class OrderService:
         if photo_filter == "with_photos":
             query = query.filter(Order.photos.any())
         elif photo_filter == "without_photos":
-            query = query.filter(~Order.photos.any())
+            # Ждут фото-подтверждения: фото-подтема и фото ещё нет
+            query = query.filter(~Order.photos.any(), _photo_required_clause())
+        else:
+            # По умолчанию — только заказы с фото или ожидающие фото-подтверждения
+            query = query.filter(
+                or_(Order.photos.any(), and_(~Order.photos.any(), _photo_required_clause()))
+            )
 
         # Pre-fetch photo counts to avoid N+1
         photo_counts = dict(
