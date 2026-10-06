@@ -101,7 +101,8 @@ jobs:
       - name: Run tests with SQLite
         run: |
           python -c "from flask_sqlalchemy.pagination import Pagination; print('Pagination import OK')"
-          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing 2>&1 | tee test_output.txt || true
+          set -o pipefail
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing 2>&1 | tee test_output.txt
       
       - name: Upload test output
         if: always()
