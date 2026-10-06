@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд сборщиков{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+<div class="page-header">
+    <h1>Дашборд сборщиков</h1>
+    <div class="user-info">
+        <a href="{{ url_for('admin.import_excel') }}" class="btn btn-secondary">Импорт Excel</a>
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Все заказы</a>
+    </div>
+</div>
+
+<!-- Pickers -->
+<div class="card">
+    <h2>📦 Сборщики</h2>
+    {% if pickers %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ФИО сборщика</th>
+                <th>Собрано заказов</th>
+                <th>Ср. время ожидания</th>
+                <th>Скорость сборки</th>
+                <th>Пользователь</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pickers %}
+            <tr>
+                <td><strong>{{ p.fio }}</strong></td>
+                <td><span class="badge">{{ p.pick_count }}</span></td>
+                <td>{{ p.wait_time }}</td>
+                <td>{{ p.pick_speed }}</td>
+                <td>
+                    {% if p.user %}
+                    <span class="badge badge-success">✓ {{ p.user.token }}</span>
+                    {% else %}
+                    <span class="badge badge-warning">нет в пользователях</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="help-text" style="margin-top: 8px;">
+        Данные из столбцов «Сборщик», «Количество собранные заказы», «Время ожидания», «Скорость сборки».
+        Загружается {{ pickers|length }} сборщиков.
+    </p>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-icon" style="width: 48px; height: 48px; margin-bottom: 12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+        </div>
+        <div class="empty-state-title">Нет данных о сборщиках</div>
+        <div class="empty-state-text">Импортируйте заказы Excel со столбцом «Сборщик» — данные появятся здесь.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Complaints: who delivered -->
+<div class="card">
+    <h2>⚠️ Курьеры: заказы с жалобами</h2>
+    {% if complaints %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ФИО курьера</th>
+                <th>Адрес</th>
+                <th>Время</th>
+                <th>ID</th>
+                <th>Номер заказа</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in complaints %}
+            <tr>
+                <td>
+                    <strong>{{ c.courier }}</strong>
+                    <br><small style="color: var(--text-secondary);">{{ c.complaint_text[:80] }}{% if c.complaint_text|length > 80 %}…{% endif %}</small>
+                </td>
+                <td>{{ c.address }}</td>
+                <td>{{ c.delivered_at }}</td>
+                <td><code>{{ c.external_id }}</code></td>
+                <td>{{ c.order_number }}</td>
+                <td>
+                    <a href="{{ url_for('user.order_photos', order_id=c.order_id) }}" class="btn btn-sm btn-primary">
+                        📷 {% if c.has_photos %}Фото{% else %}Запросить фото{% endif %}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="help-text" style="margin-top: 8px;">
+        Для каждого заказа с жалобой показан курьер (столбец «Курьер»), адрес, время доставки, ID и номер заказа —
+        Чтобы запросить у курьера фото-подтверждение.
+    </p>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-icon" style="width: 48px; height: 48px; margin-bottom: 12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+        </div>
+        <div class="empty-state-title">Жалоб нет</div>
+        <div class="empty-state-text">Импортируйте файл жалоб — здесь появятся курьеры по каждому заказу.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

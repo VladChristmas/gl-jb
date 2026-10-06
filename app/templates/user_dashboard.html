@@ -56,6 +56,30 @@
     </div>
 </div>
 
+<!-- Picker metrics (if this user is a picker in Excel data) -->
+{% if stats.picker %}
+<div class="card">
+    <h2>📦 Мои показатели сборки</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.picker.pick_count }}</div>
+            <div class="stat-label">Собрано заказов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" style="font-size: 1.1rem; padding-top: 12px;">{{ stats.picker.wait_time }}</div>
+            <div class="stat-label">Ср. время ожидания</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" style="font-size: 1.1rem; padding-top: 12px;">{{ stats.picker.pick_speed }}</div>
+            <div class="stat-label">Скорость сборки</div>
+        </div>
+    </div>
+    <p class="help-text" style="margin-top: 8px;">
+        Всего собрано заказов в системе: {{ stats.picker.orders_count }}
+    </p>
+</div>
+{% endif %}
+
 <!-- Completion Progress -->
 <div class="card">
     <h2>Прогресс</h2>

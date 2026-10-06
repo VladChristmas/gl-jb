@@ -82,6 +82,70 @@ class DashboardService:
         }
 
     @staticmethod
+    def picker_stats() -> list[dict]:
+        """Aggregated picker stats from imported Excel columns."""
+        agg_rows = (
+            db.session.query(
+                Order.picker_fio,
+                func.count(Order.id).label("orders_count"),
+                func.max(Order.pick_count).label("max_pick_count"),
+                func.max(Order.id).label("latest_id"),
+            )
+            .filter(Order.picker_fio.isnot(None), Order.picker_fio != "")
+            .group_by(Order.picker_fio)
+            .all()
+        )
+        if not agg_rows:
+            return []
+
+        latest_orders = Order.query.filter(Order.id.in_([row.latest_id for row in agg_rows])).all()
+        latest_map = {order.id: order for order in latest_orders}
+        users_map = {user.fio.strip().lower(): user for user in User.query.all()}
+
+        result = []
+        for row in agg_rows:
+            fio = str(row.picker_fio).strip()
+            latest = latest_map.get(row.latest_id)
+            result.append(
+                {
+                    "fio": fio,
+                    "pick_count": (
+                        row.max_pick_count if row.max_pick_count is not None else row.orders_count
+                    ),
+                    "wait_time": (latest.wait_time if latest else None) or "—",
+                    "pick_speed": (latest.pick_speed if latest else None) or "—",
+                    "orders_count": row.orders_count,
+                    "user": users_map.get(fio.lower()),
+                }
+            )
+        result.sort(key=lambda item: item["pick_count"], reverse=True)
+        return result
+
+    @staticmethod
+    def complaint_couriers() -> list[dict]:
+        """Complaint orders with courier info: who delivered and must send photos."""
+        rows = (
+            db.session.query(Order, User)
+            .join(User, Order.user_id == User.id)
+            .filter(Order.complaint_text.isnot(None), Order.complaint_text != "")
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .all()
+        )
+        return [
+            {
+                "order_id": order.id,
+                "courier": order.courier_fio or user.fio,
+                "address": order.address or "—",
+                "delivered_at": order.delivered_at or "—",
+                "external_id": order.external_id or "—",
+                "order_number": order.order_number or f"#{order.id}",
+                "complaint_text": order.complaint_text or "",
+                "has_photos": bool(order.photos),
+            }
+            for order, user in rows
+        ]
+
+    @staticmethod
     def courier_stats(user_id: int) -> dict:
         total_orders = (
             db.session.query(func.count(Order.id)).filter(Order.user_id == user_id).scalar() or 0
@@ -156,6 +220,12 @@ class DashboardService:
             total_orders, confirmed, total_photos, streak
         )
 
+        # Picker stats for this user (if their FIO appears in imported picker data)
+        user = db.session.get(User, user_id)
+        picker_block = None
+        if user and user.fio:
+            picker_block = DashboardService._picker_block_for_fio(user.fio)
+
         return {
             "total_orders": total_orders,
             "confirmed": confirmed,
@@ -167,6 +237,42 @@ class DashboardService:
             "pending_orders": pending_orders,
             "achievements": achievements,
             "all_perfect": pending == 0,
+            "picker": picker_block,
+        }
+
+    @staticmethod
+    def _picker_block_for_fio(fio: str) -> dict | None:
+        """Personal picker metrics for a user FIO, or None if not a picker."""
+        target = fio.strip().lower()
+        distinct_rows = (
+            db.session.query(Order.picker_fio).filter(Order.picker_fio.isnot(None)).distinct().all()
+        )
+        match = next(
+            (value for (value,) in distinct_rows if value and value.strip().lower() == target),
+            None,
+        )
+        if match is None:
+            return None
+
+        latest = (
+            db.session.query(Order)
+            .filter(Order.picker_fio == match)
+            .order_by(Order.id.desc())
+            .first()
+        )
+        if latest is None:
+            return None
+
+        orders_count, max_pick_count = (
+            db.session.query(func.count(Order.id), func.max(Order.pick_count))
+            .filter(Order.picker_fio == match)
+            .one()
+        )
+        return {
+            "pick_count": max_pick_count if max_pick_count is not None else orders_count,
+            "wait_time": latest.wait_time or "—",
+            "pick_speed": latest.pick_speed or "—",
+            "orders_count": orders_count,
         }
 
     @staticmethod

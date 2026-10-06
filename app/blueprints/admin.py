@@ -60,6 +60,14 @@ def dashboard():
     return render_template("admin_dashboard.html", stats=stats)
 
 
+@admin_bp.route("/pickers")
+@admin_required
+def pickers():
+    pickers_data = DashboardService.picker_stats()
+    complaints_data = DashboardService.complaint_couriers()
+    return render_template("admin_pickers.html", pickers=pickers_data, complaints=complaints_data)
+
+
 @admin_bp.route("/api/files")
 def api_files():
     """List uploaded files — used by the PC sync script.

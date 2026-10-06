@@ -10,6 +10,42 @@ from app.services.user_service import UserService
 
 
 class ImportService:
+    # Excel header keyword -> Order column (first match wins, case-insensitive)
+    DASHBOARD_FIELD_KEYWORDS = (
+        ("курьер", "courier_fio"),
+        ("адрес", "address"),
+        ("доставлен", "delivered_at"),
+        ("сборщик", "picker_fio"),
+        ("собран", "pick_count"),
+        ("ожидан", "wait_time"),
+        ("скорость", "pick_speed"),
+    )
+
+    @staticmethod
+    def _extract_dashboard_fields(headers: list, row: tuple) -> dict:
+        """Extract courier/picker columns from an Excel row by header keywords."""
+        found: dict = {}
+        for idx, header in enumerate(headers):
+            if header is None or idx >= len(row):
+                continue
+            text = str(header).strip().lower()
+            if not text:
+                continue
+            for keyword, field in ImportService.DASHBOARD_FIELD_KEYWORDS:
+                if keyword in text and field not in found:
+                    value = row[idx]
+                    if value is None or str(value).strip() == "":
+                        break
+                    if field == "pick_count":
+                        try:
+                            found[field] = int(float(str(value).strip().replace(",", ".")))
+                        except ValueError:
+                            pass
+                    else:
+                        found[field] = str(value).strip()
+                    break
+        return found
+
     @staticmethod
     def import_orders_from_excel(file: FileStorage, fio_col_idx: int) -> dict:
         workbook = openpyxl.load_workbook(file)
@@ -66,7 +102,14 @@ class ImportService:
                     description_parts.append(f"{key}: {value}")
             description = "; ".join(description_parts)
 
-            order = Order(user_id=user_id, order_number=order_number, description=description)
+            dash_fields = ImportService._extract_dashboard_fields(headers, row)
+
+            order = Order(
+                user_id=user_id,
+                order_number=order_number,
+                description=description,
+                **dash_fields,
+            )
             db.session.add(order)
             imported += 1
 
@@ -171,11 +214,15 @@ class ImportService:
                         description_parts.append(f"{model_field}: {value}")
                 description = "; ".join(description_parts)
 
+                dash_fields = ImportService._extract_dashboard_fields(headers, row)
+
                 if order:
                     order.user_id = user_id
                     order.order_number = order_number
                     order.description = description
                     order.external_id = ext_id
+                    for field, value in dash_fields.items():
+                        setattr(order, field, value)
                     updated += 1
                 else:
                     order = Order(
@@ -183,12 +230,16 @@ class ImportService:
                         order_number=order_number,
                         description=description,
                         external_id=ext_id,
+                        **dash_fields,
                     )
                     db.session.add(order)
                     imported += 1
 
             elif mapping.type == "complaints":
                 order = Order.query.filter_by(external_id=ext_id).first()
+                if not order:
+                    # Complaint ID may hold the order number instead of external ID
+                    order = Order.query.filter_by(order_number=ext_id).first()
                 if not order:
                     skipped += 1
                     errors.append(f'Строка {row_idx}: заказ с ID "{ext_id}" не найден')

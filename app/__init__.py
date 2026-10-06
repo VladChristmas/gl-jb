@@ -170,4 +170,37 @@ def create_app():
         except Exception as e:
             app.logger.error(f"Database inspection error: {e}")
 
+        # Ensure new orders columns exist (create_all never alters existing tables,
+        # and alembic migrations may be unversioned on a live database).
+        try:
+            from sqlalchemy import inspect as sa_inspect
+            from sqlalchemy import text
+
+            inspector = sa_inspect(db.engine)
+            if "orders" in inspector.get_table_names():
+                existing = {col["name"] for col in inspector.get_columns("orders")}
+                required = {
+                    "courier_fio": "VARCHAR(255)",
+                    "address": "VARCHAR(500)",
+                    "delivered_at": "VARCHAR(100)",
+                    "picker_fio": "VARCHAR(255)",
+                    "pick_count": "INTEGER",
+                    "wait_time": "VARCHAR(100)",
+                    "pick_speed": "VARCHAR(100)",
+                }
+                for col_name, ddl_type in required.items():
+                    if col_name in existing:
+                        continue
+                    try:
+                        db.session.execute(
+                            text(f"ALTER TABLE orders ADD COLUMN {col_name} {ddl_type}")
+                        )
+                        db.session.commit()
+                        app.logger.info(f"Added missing column orders.{col_name}")
+                    except Exception as ce:
+                        db.session.rollback()
+                        app.logger.info(f"Column orders.{col_name}: {ce.__class__.__name__}")
+        except Exception as e:
+            app.logger.error(f"Column ensure error: {e}")
+
     return app
