@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import distinct, func
+from sqlalchemy import case, distinct, func
 
 from app.extensions import db
 from app.models.order import Order
@@ -49,16 +49,6 @@ class DashboardService:
             .all()
         )
 
-        # Recent photos (last 10)
-        recent_photos = (
-            db.session.query(Photo, Order, User)
-            .join(Order, Photo.order_id == Order.id)
-            .join(User, Order.user_id == User.id)
-            .order_by(Photo.uploaded_at.desc())
-            .limit(10)
-            .all()
-        )
-
         # Orders per day (last 7 days)
         week_ago = datetime.utcnow() - timedelta(days=7)
         daily_orders = (
@@ -71,24 +61,14 @@ class DashboardService:
             .all()
         )
 
-        # Top couriers by photo uploads
-        top_couriers = (
-            db.session.query(User.fio, func.count(Photo.id).label("photo_count"))
-            .join(Order, Order.user_id == User.id)
-            .join(Photo, Photo.order_id == Order.id)
-            .group_by(User.id, User.fio)
-            .order_by(func.count(Photo.id).desc())
-            .limit(5)
-            .all()
-        )
-
         # Completion rate
         completion_rate = round(
             (orders_with_photos / orders_count * 100) if orders_count > 0 else 0, 1
         )
 
-        # Best pickers (top-5 by speed + wait score)
+        # Best pickers and best couriers (top-5 each)
         best_pickers = DashboardService.picker_stats()[:5]
+        best_couriers = DashboardService.best_couriers()[:5]
 
         return {
             "users_count": users_count,
@@ -98,11 +78,43 @@ class DashboardService:
             "orders_without_photos": orders_without_photos,
             "completion_rate": completion_rate,
             "recent_orders": recent_orders,
-            "recent_photos": recent_photos,
             "daily_orders": daily_orders,
-            "top_couriers": top_couriers,
+            "best_couriers": best_couriers,
             "best_pickers": best_pickers,
         }
+
+    @staticmethod
+    def best_couriers(limit: int = 5) -> list[dict]:
+        """Лучшие курьеры: меньше обращений (жалоб) на перевезённые заказы — лучше."""
+        rows = (
+            db.session.query(
+                Order.courier_fio,
+                func.count(Order.id).label("orders_count"),
+                func.sum(
+                    case(
+                        (
+                            Order.complaint_text.isnot(None) & (Order.complaint_text != ""),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("complaints_count"),
+            )
+            .filter(Order.courier_fio.isnot(None), Order.courier_fio != "")
+            .group_by(Order.courier_fio)
+            .all()
+        )
+        result = [
+            {
+                "fio": str(row.courier_fio).strip(),
+                "orders_count": row.orders_count,
+                "complaints_count": int(row.complaints_count or 0),
+            }
+            for row in rows
+        ]
+        # Наименьшее число жалоб — лучше; при равенстве больше перевезённых заказов
+        result.sort(key=lambda item: (item["complaints_count"], -item["orders_count"]))
+        return result[:limit]
 
     @staticmethod
     def picker_stats() -> list[dict]:
@@ -131,8 +143,8 @@ class DashboardService:
             latest = latest_map.get(row.latest_id)
             wait_time = (latest.wait_time if latest else None) or "—"
             pick_speed = (latest.pick_speed if latest else None) or "—"
-            # Рейтинг: чем больше скорость сборки и ожидание — тем лучше
-            score = round(_to_number(pick_speed) + _to_number(wait_time), 1)
+            # Рейтинг: чем выше скорость сборки и ниже ожидание — тем лучше
+            score = round(_to_number(pick_speed) - _to_number(wait_time), 1)
             result.append(
                 {
                     "fio": fio,

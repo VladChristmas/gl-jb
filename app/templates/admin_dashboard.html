@@ -9,7 +9,7 @@
 </header>
 
 <!-- Stats Cards -->
-<div class="stats-grid">
+<div class="stats-grid stats-grid-2">
     <div class="stat-card">
         <div class="stat-number">{{ stats.users_count }}</div>
         <div class="stat-label">Курьеров</div>
@@ -54,84 +54,90 @@
     </nav>
 </div>
 
-<!-- Best Pickers -->
-<div class="card">
-    <div class="page-header" style="margin-bottom: 12px;">
-        <h2 style="margin: 0;">Лучшие сборщики</h2>
-        <a href="{{ url_for('admin.pickers') }}" class="btn btn-sm btn-secondary">Все сборщики →</a>
-    </div>
-    <p class="help-text" style="margin-top: 0;">
-        Рейтинг = скорость сборки + ожидание — чем больше, тем лучше
-    </p>
-    {% if stats.best_pickers %}
-    <div class="activity-list">
-        {% for picker in stats.best_pickers %}
-        <div class="activity-item">
-            <div class="activity-icon">{{ loop.index }}</div>
-            <div class="activity-body">
-                <div class="activity-title">{{ picker.fio }}</div>
-                <div class="activity-meta">
-                    Скорость: {{ picker.pick_speed }} · Ожидание: {{ picker.wait_time }}
-                    · Собрано: {{ picker.pick_count }}
+<div class="dashboard-grid">
+    <!-- Best Pickers -->
+    <div class="card">
+        <div class="page-header" style="margin-bottom: 8px;">
+            <h2 style="margin: 0;">Лучшие сборщики</h2>
+            <a href="{{ url_for('admin.pickers') }}" class="btn btn-sm btn-secondary">Все →</a>
+        </div>
+        <p class="help-text" style="margin-top: 0;">
+            Чем выше скорость сборки и ниже ожидание — тем лучше
+        </p>
+        {% if stats.best_pickers %}
+        <div class="activity-list">
+            {% for picker in stats.best_pickers %}
+            <div class="activity-item">
+                <div class="activity-icon">{{ loop.index }}</div>
+                <div class="activity-body">
+                    <div class="activity-title">{{ picker.fio }}</div>
+                    <div class="activity-meta">
+                        Скорость: {{ picker.pick_speed }} · Ожидание: {{ picker.wait_time }}
+                        · Собрано: {{ picker.pick_count }}
+                    </div>
                 </div>
+                <div class="badge badge-success">{{ picker.score }}</div>
             </div>
-            <div class="badge badge-success">{{ picker.score }}</div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <div class="empty-state-text">Нет данных о сборщиках — импортируйте файл со столбцом «Сборщик»</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Best Couriers -->
+    <div class="card">
+        <div class="page-header" style="margin-bottom: 8px;">
+            <h2 style="margin: 0;">Лучшие курьеры</h2>
+            <a href="{{ url_for('admin.couriers') }}" class="btn btn-sm btn-secondary">Все →</a>
+        </div>
+        <p class="help-text" style="margin-top: 0;">
+            Меньше обращений на перевезённые заказы — тем лучше
+        </p>
+        {% if stats.best_couriers %}
+        <div class="activity-list">
+            {% for c in stats.best_couriers %}
+            <div class="activity-item">
+                <div class="activity-icon">{{ loop.index }}</div>
+                <div class="activity-body">
+                    <div class="activity-title">{{ c.fio }}</div>
+                    <div class="activity-meta">{{ c.complaints_count }} обращений из {{ c.orders_count }} заказов</div>
+                </div>
+                <div class="badge {{ 'badge-success' if c.complaints_count == 0 else 'badge-warning' }}">{{ c.complaints_count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 24px;">
+            <div class="empty-state-text">Нет заказов с указанным курьером — импортируйте файл со столбцом «Курьер»</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="card">
+    <h2>Последние заказы</h2>
+    {% if stats.recent_orders %}
+    <div class="activity-list">
+        {% for order, user in stats.recent_orders %}
+        <div class="activity-item">
+            <div class="activity-icon">{{ '✅' if order.photos else '⏳' }}</div>
+            <div class="activity-body">
+                <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
+                <div class="activity-meta">{{ user.fio }} · {{ order.created_at.strftime('%d.%m %H:%M') if order.created_at else '' }}</div>
+            </div>
+            <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">→</a>
         </div>
         {% endfor %}
     </div>
     {% else %}
     <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-text">Нет данных о сборщиках — импортируйте файл со столбцом «Сборщик»</div>
+        <div class="empty-state-text">Заказов пока нет</div>
     </div>
     {% endif %}
-</div>
-
-<div class="dashboard-grid">
-    <!-- Recent Orders -->
-    <div class="card">
-        <h2>Последние заказы</h2>
-        {% if stats.recent_orders %}
-        <div class="activity-list">
-            {% for order, user in stats.recent_orders %}
-            <div class="activity-item">
-                <div class="activity-icon">{{ '✅' if order.photos else '⏳' }}</div>
-                <div class="activity-body">
-                    <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
-                    <div class="activity-meta">{{ user.fio }} · {{ order.created_at.strftime('%d.%m %H:%M') if order.created_at else '' }}</div>
-                </div>
-                <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">→</a>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state" style="padding: 24px;">
-            <div class="empty-state-text">Заказов пока нет</div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Top Couriers -->
-    <div class="card">
-        <h2>Лучшие курьеры</h2>
-        {% if stats.top_couriers %}
-        <div class="activity-list">
-            {% for fio, count in stats.top_couriers %}
-            <div class="activity-item">
-                <div class="activity-icon">{{ loop.index }}</div>
-                <div class="activity-body">
-                    <div class="activity-title">{{ fio }}</div>
-                    <div class="activity-meta">{{ count }} фото</div>
-                </div>
-                <div class="badge badge-success">{{ count }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state" style="padding: 24px;">
-            <div class="empty-state-text">Пока нет загруженных фото</div>
-        </div>
-        {% endif %}
-    </div>
 </div>
 
 <!-- Storage Info -->

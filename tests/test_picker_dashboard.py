@@ -266,7 +266,7 @@ class TestPickerRoutes:
 
 
 class TestPickerRanking:
-    def test_score_is_speed_plus_wait(self, db_session, regular_user):
+    def test_score_is_speed_minus_wait(self, db_session, regular_user):
         db_session.add(
             Order(
                 user_id=regular_user.id,
@@ -281,7 +281,8 @@ class TestPickerRanking:
 
         stats = DashboardService.picker_stats()
         assert len(stats) == 1
-        assert stats[0]["score"] == 17.0
+        # 12/час - 5 мин = 7: выше скорость и ниже ожидание — тем лучше
+        assert stats[0]["score"] == 7.0
 
     def test_sorted_by_score_desc(self, db_session, regular_user):
         for num, fio, wait, speed in [
@@ -301,8 +302,25 @@ class TestPickerRanking:
 
         stats = DashboardService.picker_stats()
         assert [s["fio"] for s in stats] == ["Быстрый", "Медленный"]
-        assert stats[0]["score"] == 35.0
-        assert stats[1]["score"] == 32.0
+        assert stats[0]["score"] == 25.0
+        assert stats[1]["score"] == -28.0
+
+    def test_higher_wait_lowers_score(self, db_session, regular_user):
+        for num, wait in [("R-5", "2 мин"), ("R-6", "20 мин")]:
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=num,
+                    picker_fio=f"Сборщик-{num}",
+                    wait_time=wait,
+                    pick_speed="10/час",
+                )
+            )
+        db_session.commit()
+
+        stats = DashboardService.picker_stats()
+        # При одинаковой скорости меньше ожидание — лучше
+        assert stats[0]["score"] > stats[1]["score"]
 
     def test_no_numbers_gives_zero_score(self, db_session, regular_user):
         db_session.add(
@@ -404,6 +422,64 @@ class TestCouriersRoute:
         assert html.count("Запросить фото") == 1
 
 
+class TestBestCouriers:
+    def test_fewer_complaints_ranks_higher(self, db_session, regular_user):
+        for i in range(3):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-1-{i}",
+                    courier_fio="Курьер с жалобами",
+                    complaint_text="Предиктив доставка" if i == 0 else None,
+                )
+            )
+        for i in range(2):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-2-{i}",
+                    courier_fio="Идеальный курьер",
+                )
+            )
+        db_session.commit()
+
+        best = DashboardService.best_couriers()
+        assert [c["fio"] for c in best] == ["Идеальный курьер", "Курьер с жалобами"]
+        assert best[0]["complaints_count"] == 0
+        assert best[0]["orders_count"] == 2
+        assert best[1]["complaints_count"] == 1
+        assert best[1]["orders_count"] == 3
+
+    def test_tie_break_by_more_orders(self, db_session, regular_user):
+        for i in range(5):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-3-{i}",
+                    courier_fio="Большой маршрут",
+                )
+            )
+        for i in range(2):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-4-{i}",
+                    courier_fio="Малый маршрут",
+                )
+            )
+        db_session.commit()
+
+        best = DashboardService.best_couriers()
+        assert best[0]["fio"] == "Большой маршрут"
+        assert best[1]["fio"] == "Малый маршрут"
+
+    def test_orders_without_courier_excluded(self, db_session, regular_user):
+        db_session.add(Order(user_id=regular_user.id, order_number="BC-5"))
+        db_session.commit()
+
+        assert DashboardService.best_couriers() == []
+
+
 class TestDashboardRestructure:
     def test_main_screen_keeps_required_blocks(self, admin_client, db_session, regular_user):
         db_session.add(
@@ -414,6 +490,8 @@ class TestDashboardRestructure:
                 pick_count=42,
                 wait_time="5 мин",
                 pick_speed="12/час",
+                courier_fio="Курьер Тестов",
+                complaint_text="Предиктив доставка",
             )
         )
         db_session.commit()
@@ -423,14 +501,19 @@ class TestDashboardRestructure:
         assert "Курьеров" in html
         assert "Ожидают фото" in html
         assert "Общий процент выполнения" in html
+        # Two equal stat cards
+        assert "stats-grid-2" in html
         # Quick actions: only users, orders, pickers, couriers
         assert "Пользователи" in html
         assert "Все заказы" in html
         assert "Сборщики" in html
         assert "Курьеры" in html
-        # Best pickers block
+        # Best pickers and best couriers
         assert "Лучшие сборщики" in html
+        assert "Лучшие курьеры" in html
         assert regular_user.fio in html
+        assert "Курьер Тестов" in html
+        assert "обращений из" in html
         # Storage kept
         assert "Хранилище" in html
 
@@ -442,6 +525,30 @@ class TestDashboardRestructure:
         assert "Импорт Excel" not in html
         assert "Маппинги" not in html
         assert "Экспорт" not in html
+
+    def test_block_order(self, admin_client, db_session, regular_user):
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="DS-3",
+                picker_fio=regular_user.fio,
+                pick_count=1,
+                wait_time="1 мин",
+                pick_speed="1/час",
+                courier_fio="Курьер Тестов",
+            )
+        )
+        db_session.commit()
+
+        html = admin_client.get("/admin/").get_data(as_text=True)
+        idx_pickers = html.index("Лучшие сборщики")
+        idx_couriers = html.index("Лучшие курьеры")
+        idx_recent = html.index("Последние заказы")
+        # Рейтинги рядом, «Последние заказы» — ниже
+        assert idx_pickers < idx_recent
+        assert idx_couriers < idx_recent
+        # Оба блока идут подряд (между ними нет других секций)
+        assert idx_couriers - idx_pickers < 6000
 
     def test_pickers_page_has_no_complaints_section(self, admin_client, db_session, regular_user):
         db_session.add(

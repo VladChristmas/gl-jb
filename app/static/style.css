@@ -413,6 +413,10 @@ textarea:focus-visible,
     margin-bottom: var(--spacing-xl);
 }
 
+.stats-grid.stats-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .stat-card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
