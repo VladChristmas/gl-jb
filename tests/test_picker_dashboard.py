@@ -1,9 +1,10 @@
 import io
+from datetime import datetime
 
 import openpyxl
 import pytest
 
-from app.models import ImportMapping, Order
+from app.models import ImportMapping, Order, User
 from app.services.dashboard_service import DashboardService
 from app.services.import_service import ImportService
 
@@ -480,6 +481,75 @@ class TestBestCouriers:
         assert DashboardService.best_couriers() == []
 
 
+class TestComplaintPlaceholder:
+    def test_unmatched_complaint_creates_placeholder_order(self, db_session, regular_user):
+        mapping = ImportMapping(
+            name="complaints-new",
+            type="complaints",
+            id_column="Номер заказа",
+            field_mapping={"Подтема": "complaint_text"},
+            skip_first_row=True,
+        )
+        db_session.add(mapping)
+        db_session.commit()
+
+        file = make_file(
+            ["Номер заказа", "Подтема"],
+            [["7fe5e71f-15ba-4734-a44c-a4d0e9b7276d", "Товар побит/вскрыт"]],
+        )
+        result = ImportService.import_with_mapping(file, mapping)
+        assert result["imported"] == 1
+        assert result["skipped"] == 0
+
+        order = Order.query.filter_by(external_id="7fe5e71f-15ba-4734-a44c-a4d0e9b7276d").first()
+        assert order is not None
+        assert order.complaint_text == "Товар побит/вскрыт"
+        user = User.query.get(order.user_id)
+        assert user is not None
+        assert user.fio == "Не указан"
+
+        # Повторный импорт — заказ находится, дубль не создаётся
+        file = make_file(
+            ["Номер заказа", "Подтема"],
+            [["7fe5e71f-15ba-4734-a44c-a4d0e9b7276d", "Товар побит/вскрыт"]],
+        )
+        result = ImportService.import_with_mapping(file, mapping)
+        assert result["imported"] == 0
+        assert result["updated"] == 1
+        assert (
+            Order.query.filter_by(external_id="7fe5e71f-15ba-4734-a44c-a4d0e9b7276d").count() == 1
+        )
+
+    def test_second_topic_appended_not_overwritten(self, db_session, regular_user):
+        mapping = ImportMapping(
+            name="complaints-append",
+            type="complaints",
+            id_column="Номер заказа",
+            field_mapping={"Подтема": "complaint_text"},
+            skip_first_row=True,
+        )
+        db_session.add(mapping)
+        db_session.commit()
+
+        file = make_file(
+            ["Номер заказа", "Подтема"],
+            [
+                ["APP-1", "Не донесли часть товаров из заказа"],
+                ["APP-1", "Старт"],
+            ],
+        )
+        ImportService.import_with_mapping(file, mapping)
+
+        # Жалобы без заказа → обе строки создают заглушки (APP-1 = external_id)
+        order = Order.query.filter_by(external_id="APP-1").first()
+        assert order is not None
+        assert order.complaint_text == "Не донесли часть товаров из заказа; Старт"
+
+        # Whitelist-подтема найдена как подстрока → кнопка фото остаётся
+        rows = [r for r in DashboardService.complaint_couriers() if r["external_id"] == "APP-1"]
+        assert rows and rows[0]["photo_required"] is True
+
+
 class TestDashboardRestructure:
     def test_main_screen_keeps_required_blocks(self, admin_client, db_session, regular_user):
         db_session.add(
@@ -522,9 +592,44 @@ class TestDashboardRestructure:
         assert "Всего заказов" not in html
         assert "Подтверждено" not in html
         assert "Последние фото" not in html
+        assert "Последние заказы" not in html
         assert "Импорт Excel" not in html
         assert "Маппинги" not in html
         assert "Экспорт" not in html
+
+    def test_pending_block_shows_count_and_links(self, admin_client, db_session, regular_user):
+        db_session.add(
+            Order(user_id=regular_user.id, order_number="PEND-1", created_at=datetime.utcnow())
+        )
+        db_session.add(
+            Order(user_id=regular_user.id, order_number="PEND-2", created_at=datetime.utcnow())
+        )
+        db_session.commit()
+
+        html = admin_client.get("/admin/").get_data(as_text=True)
+        assert "Ждут подтверждения" in html
+        assert 'id="pending-count"' in html
+        assert 'id="stat-pending"' in html
+        # Оба заказа без фото — показаны и кликабельны
+        assert "PEND-1" in html
+        assert "PEND-2" in html
+        assert 'href="/admin/orders/edit/' in html
+        # Ссылка на список всех заказов без фото
+        assert "photo_filter=without_photos" in html
+
+    def test_pending_count_api(self, admin_client, db_session, regular_user):
+        db_session.add(Order(user_id=regular_user.id, order_number="PEND-3"))
+        db_session.commit()
+
+        # С админ-сессией — 200 и живой счётчик
+        resp = admin_client.get("/admin/api/pending_count")
+        assert resp.status_code == 200
+        assert resp.get_json()["pending"] >= 1
+
+        # После логаута — 403
+        admin_client.get("/admin/logout")
+        resp = admin_client.get("/admin/api/pending_count")
+        assert resp.status_code == 403
 
     def test_block_order(self, admin_client, db_session, regular_user):
         db_session.add(
@@ -543,10 +648,10 @@ class TestDashboardRestructure:
         html = admin_client.get("/admin/").get_data(as_text=True)
         idx_pickers = html.index("Лучшие сборщики")
         idx_couriers = html.index("Лучшие курьеры")
-        idx_recent = html.index("Последние заказы")
-        # Рейтинги рядом, «Последние заказы» — ниже
-        assert idx_pickers < idx_recent
-        assert idx_couriers < idx_recent
+        idx_pending = html.index("Ждут подтверждения")
+        # Рейтинги рядом, «Ждут подтверждения» — ниже
+        assert idx_pickers < idx_pending
+        assert idx_couriers < idx_pending
         # Оба блока идут подряд (между ними нет других секций)
         assert idx_couriers - idx_pickers < 6000
 
@@ -564,3 +669,18 @@ class TestDashboardRestructure:
         html = admin_client.get("/admin/pickers").get_data(as_text=True)
         assert "заказы с жалобами" not in html
         assert "Запросить фото" not in html
+
+    def test_couriers_table_keeps_actions_on_mobile(self, admin_client, db_session, regular_user):
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="MB-1",
+                courier_fio="Курьер Мобильный",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.commit()
+
+        html = admin_client.get("/admin/couriers").get_data(as_text=True)
+        assert "table-keep-actions" in html
+        assert "Запросить фото" in html

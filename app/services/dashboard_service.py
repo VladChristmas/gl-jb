@@ -40,12 +40,14 @@ class DashboardService:
 
         orders_without_photos = orders_count - orders_with_photos
 
-        # Recent orders (last 10)
-        recent_orders = (
+        # Заказы, ждущие подтверждения (без фото) — последние 20
+        pending_orders = (
             db.session.query(Order, User)
             .join(User, Order.user_id == User.id)
-            .order_by(Order.created_at.desc())
-            .limit(10)
+            .outerjoin(Photo, Photo.order_id == Order.id)
+            .filter(Photo.id.is_(None))
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(20)
             .all()
         )
 
@@ -77,11 +79,18 @@ class DashboardService:
             "orders_with_photos": orders_with_photos,
             "orders_without_photos": orders_without_photos,
             "completion_rate": completion_rate,
-            "recent_orders": recent_orders,
+            "pending_orders": pending_orders,
             "daily_orders": daily_orders,
             "best_couriers": best_couriers,
             "best_pickers": best_pickers,
         }
+
+    @staticmethod
+    def pending_orders_count() -> int:
+        """Сколько заказов ждут подтверждения (без фото)."""
+        orders_count = db.session.query(func.count(Order.id)).scalar() or 0
+        with_photos = db.session.query(func.count(distinct(Photo.order_id))).scalar() or 0
+        return orders_count - with_photos
 
     @staticmethod
     def best_couriers(limit: int = 5) -> list[dict]:
@@ -181,7 +190,10 @@ class DashboardService:
                 "order_number": order.order_number or f"#{order.id}",
                 "complaint_text": order.complaint_text or "",
                 "has_photos": bool(order.photos),
-                "photo_required": (order.complaint_text or "").strip() in PHOTO_REQUIRED_TOPICS,
+                # Жалобы ждут фото, если complaint_text содержит одну из подтем списка
+                "photo_required": any(
+                    topic in (order.complaint_text or "") for topic in PHOTO_REQUIRED_TOPICS
+                ),
             }
             for order, user in rows
         ]

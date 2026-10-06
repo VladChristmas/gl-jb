@@ -6,10 +6,13 @@ from werkzeug.datastructures import FileStorage
 from app.extensions import db
 from app.models.import_mapping import ImportMapping
 from app.models.order import Order
+from app.models.user import User
 from app.services.user_service import UserService
 
 
 class ImportService:
+    # Placeholder user for complaints whose order is missing from the orders import
+    PLACEHOLDER_USER_FIO = "Не указан"
     # Excel header keyword -> Order column (first match wins, case-insensitive)
     DASHBOARD_FIELD_KEYWORDS = (
         ("курьер", "courier_fio"),
@@ -240,16 +243,30 @@ class ImportService:
                 if not order:
                     # Complaint ID may hold the order number instead of external ID
                     order = Order.query.filter_by(order_number=ext_id).first()
+                created = False
                 if not order:
-                    skipped += 1
-                    errors.append(f'Строка {row_idx}: заказ с ID "{ext_id}" не найден')
-                    continue
+                    # Заказ не найден — создаём заказ-заглушку, чтобы жалоба не потерялась
+                    user = User.query.filter_by(fio=ImportService.PLACEHOLDER_USER_FIO).first()
+                    if not user:
+                        user = UserService.create_user(ImportService.PLACEHOLDER_USER_FIO)
+                    order = Order(
+                        user_id=user.id,
+                        external_id=ext_id,
+                        order_number=f"Жалоба {ext_id[:8]}",
+                    )
+                    db.session.add(order)
+                    created = True
 
                 for model_field, col_idx in field_indices.items():
                     value = row[col_idx]
                     if value is not None:
                         if model_field == "complaint_text":
-                            order.complaint_text = str(value)
+                            new_text = str(value).strip()
+                            existing = (order.complaint_text or "").strip()
+                            if not existing:
+                                order.complaint_text = new_text
+                            elif new_text and new_text not in existing:
+                                order.complaint_text = f"{existing}; {new_text}"
                         elif model_field == "complaint_status":
                             order.complaint_status = str(value)
                         elif model_field == "complaint_date":
@@ -263,7 +280,10 @@ class ImportService:
                             elif hasattr(value, "isoformat"):
                                 order.complaint_date = value
 
-                updated += 1
+                if created:
+                    imported += 1
+                else:
+                    updated += 1
 
         db.session.commit()
 

@@ -83,6 +83,14 @@ def couriers():
     )
 
 
+@admin_bp.route("/api/pending_count")
+def api_pending_count():
+    """Живой счётчик заказов, ждущих подтверждения (для polling на дашборде)."""
+    if not session.get("is_admin"):
+        return jsonify({"error": "forbidden"}), 403
+    return jsonify({"pending": DashboardService.pending_orders_count()})
+
+
 @admin_bp.route("/api/files")
 def api_files():
     """List uploaded files — used by the PC sync script.

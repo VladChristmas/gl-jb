@@ -15,7 +15,7 @@
         <div class="stat-label">Курьеров</div>
     </div>
     <div class="stat-card">
-        <div class="stat-number" style="color: {% if stats.orders_without_photos > 0 %}var(--warning){% else %}var(--success){% endif %};">
+        <div class="stat-number" id="stat-pending" style="color: {% if stats.orders_without_photos > 0 %}var(--warning){% else %}var(--success){% endif %};">
             {{ stats.orders_without_photos }}
         </div>
         <div class="stat-label">Ожидают фото</div>
@@ -117,25 +117,41 @@
     </div>
 </div>
 
-<!-- Recent Orders -->
+<!-- Orders awaiting confirmation -->
 <div class="card">
-    <h2>Последние заказы</h2>
-    {% if stats.recent_orders %}
+    <div class="page-header" style="margin-bottom: 8px;">
+        <h2 style="margin: 0;">Ждут подтверждения</h2>
+        <span class="badge badge-warning" id="pending-count" style="font-size: 16px; padding: 6px 14px;">
+            {{ stats.orders_without_photos }}
+        </span>
+    </div>
+    <p class="help-text" style="margin-top: 0;">
+        Заказы без фото-подтверждения — нажмите на заказ, чтобы открыть подробную информацию
+    </p>
+    {% if stats.pending_orders %}
     <div class="activity-list">
-        {% for order, user in stats.recent_orders %}
+        {% for order, user in stats.pending_orders %}
         <div class="activity-item">
-            <div class="activity-icon">{{ '✅' if order.photos else '⏳' }}</div>
+            <div class="activity-icon">⏳</div>
             <div class="activity-body">
-                <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
+                <div class="activity-title">
+                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" style="color: inherit;">
+                        {{ order.order_number or '#' ~ order.id }}
+                    </a>
+                </div>
                 <div class="activity-meta">{{ user.fio }} · {{ order.created_at.strftime('%d.%m %H:%M') if order.created_at else '' }}</div>
             </div>
             <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">→</a>
         </div>
         {% endfor %}
     </div>
+    <p class="help-text" style="margin-top: 8px;">
+        Показаны последние {{ stats.pending_orders|length }} из {{ stats.orders_without_photos }} —
+        <a href="{{ url_for('admin.orders', photo_filter='without_photos') }}">все заказы без фото →</a>
+    </p>
     {% else %}
     <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-text">Заказов пока нет</div>
+        <div class="empty-state-text">Все заказы подтверждены — ждать нечего</div>
     </div>
     {% endif %}
 </div>
@@ -158,4 +174,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    function refreshPending() {
+        fetch("{{ url_for('admin.api_pending_count') }}")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (typeof data.pending !== "number") return;
+                var badge = document.getElementById("pending-count");
+                if (badge) badge.textContent = data.pending;
+                var stat = document.getElementById("stat-pending");
+                if (stat) stat.textContent = data.pending;
+            })
+            .catch(function () { /* ignore */ });
+    }
+    setInterval(refreshPending, 30000);
+})();
+</script>
 {% endblock %}

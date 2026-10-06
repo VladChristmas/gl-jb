@@ -1003,6 +1003,12 @@ textarea:focus-visible,
     .table td:nth-child(n+4) {
         display: none;
     }
+
+    /* На дашборде курьеров кнопка действий (запрос фото) остаётся видимой */
+    .table.table-keep-actions th:last-child,
+    .table.table-keep-actions td:last-child {
+        display: table-cell;
+    }
 }
 
 /* ========== DARK THEME ========== */
