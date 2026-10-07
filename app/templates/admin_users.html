@@ -14,6 +14,14 @@
         <label for="fio">ФИО пользователя</label>
         <input type="text" id="fio" name="fio" required placeholder="Иванов Иван Иванович">
     </div>
+    <div class="form-group">
+        <label for="role">Кто это</label>
+        <select id="role" name="role">
+            {% for role in user_roles %}
+            <option value="{{ role }}" {% if role == 'courier' %}selected{% endif %}>{{ role_labels[role] }}</option>
+            {% endfor %}
+        </select>
+    </div>
     <button type="submit" class="btn btn-primary">Создать</button>
 </form>
 
@@ -32,6 +40,7 @@
     <thead>
         <tr>
             <th>ФИО</th>
+            <th>Роль</th>
             <th>Токен</th>
             <th>Создан</th>
             <th>Действия</th>
@@ -41,9 +50,23 @@
         {% for user in users %}
         <tr>
             <td>{{ user.fio }}</td>
+            <td>
+                <span class="badge {{ 'badge-success' if user.role == 'admin' else ('badge-warning' if user.role == 'picker' else 'badge-primary') }}">
+                    {{ role_labels.get(user.role, user.role) }}
+                </span>
+            </td>
             <td><code>{{ user.token }}</code></td>
             <td>{{ user.created_at }}</td>
             <td>
+                <form method="post" action="{{ url_for('admin.set_user_role', user_id=user.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="role" class="btn-sm" style="max-width: 140px;">
+                        {% for r in user_roles %}
+                        <option value="{{ r }}" {{ 'selected' if r == user.role else '' }}>{{ role_labels[r] }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-secondary btn-sm">Сменить роль</button>
+                </form>
                 <form method="post" action="{{ url_for('admin.regenerate_token', user_id=user.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Перегенерировать токен для {{ user.fio }}?')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-secondary btn-sm">Новый токен</button>
@@ -56,7 +79,7 @@
         </tr>
         {% else %}
         <tr>
-            <td colspan="4">
+            <td colspan="5">
                 <div class="empty-state">
                     <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>

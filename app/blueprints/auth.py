@@ -1,5 +1,6 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app.constants import ROLE_ADMIN
 from app.extensions import limiter
 from app.services.user_service import UserService
 from config import ADMIN_PASSWORD, ADMIN_TOKEN
@@ -25,6 +26,10 @@ def unified_login():
         if user:
             session["user_id"] = user.id
             session["user_fio"] = user.fio
+            session["user_role"] = user.role
+            if user.role == ROLE_ADMIN:
+                session["is_admin"] = True
+                return redirect(url_for("admin.dashboard"))
             return redirect(url_for("user.dashboard"))
         else:
             flash("Неверный токен", "error")

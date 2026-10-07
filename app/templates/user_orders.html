@@ -7,9 +7,14 @@
     <h1>Мои заказы</h1>
     <div class="user-info">
         <span>{{ session.user_fio }}</span>
+        <a href="{{ url_for('user.chat') }}" class="btn btn-secondary btn-sm">💬 Чат</a>
+        <a href="{{ url_for('user.dashboard') }}" class="btn btn-secondary btn-sm">Главная</a>
         <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm">Выйти</a>
     </div>
 </header>
+
+{# CSRF для JS-загрузки фото (вне GET-формы, чтобы не попадал в query) #}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="upload-csrf">
 
 <form method="get" class="form-inline" style="margin-bottom: 1rem;">
     <div class="form-group" style="flex: 1;">
@@ -172,20 +177,23 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('photo', selectedFile);
             
             try {
+                const csrfEl = document.querySelector('input[name="csrf_token"]');
                 const response = await fetch(`/orders/${orderId}/upload`, {
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                        'X-CSRFToken': csrfEl ? csrfEl.value : ''
                     }
                 });
-                
-                if (response.ok || response.redirected) {
+
+                let data = null;
+                try { data = await response.json(); } catch (e) { data = null; }
+
+                if (response.ok && data && data.ok) {
                     // Reload page to show updated state
                     window.location.reload();
                 } else {
-                    const text = await response.text();
-                    alert('Ошибка загрузки: ' + text);
+                    alert('Ошибка загрузки: ' + ((data && data.error) || ('HTTP ' + response.status)));
                     uploadBtn.disabled = false;
                     uploadBtn.textContent = 'Загрузить фото';
                     uploadBtn.classList.remove('loading');

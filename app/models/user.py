@@ -1,3 +1,4 @@
+from app.constants import ROLE_COURIER
 from app.extensions import db
 
 
@@ -6,6 +7,9 @@ class User(db.Model):  # type: ignore[name-defined]
     id = db.Column(db.Integer, primary_key=True)
     fio = db.Column(db.String(255), unique=True, nullable=False)
     token = db.Column(db.String(10), unique=True, nullable=False)
+    role = db.Column(
+        db.String(20), nullable=False, default=ROLE_COURIER, server_default=ROLE_COURIER
+    )
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     orders = db.relationship("Order", backref="user", lazy=True, cascade="all, delete-orphan")

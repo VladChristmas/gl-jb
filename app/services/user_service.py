@@ -1,5 +1,6 @@
 from flask_sqlalchemy.pagination import Pagination
 
+from app.constants import ROLE_COURIER, USER_ROLES
 from app.extensions import db
 from app.models.user import User
 from app.utils.token import generate_token
@@ -13,9 +14,11 @@ def _invalidate_stats():
 
 class UserService:
     @staticmethod
-    def create_user(fio: str) -> User:
+    def create_user(fio: str, role: str = ROLE_COURIER) -> User:
+        if role not in USER_ROLES:
+            role = ROLE_COURIER
         token = generate_token()
-        user = User(fio=fio.strip(), token=token)
+        user = User(fio=fio.strip(), token=token, role=role)
         db.session.add(user)
         db.session.commit()
         _invalidate_stats()
@@ -54,6 +57,14 @@ class UserService:
         user = db.session.get(User, user_id)
         if user:
             user.token = generate_token()
+            db.session.commit()
+        return user
+
+    @staticmethod
+    def set_role(user_id: int, role: str) -> User | None:
+        user = db.session.get(User, user_id)
+        if user and role in USER_ROLES:
+            user.role = role
             db.session.commit()
         return user
 

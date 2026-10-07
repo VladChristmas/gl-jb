@@ -1,5 +1,6 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
+from app.constants import ROLE_LABELS, ROLE_PICKER
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.message_service import MessageService
@@ -26,14 +27,27 @@ def user_required(f):
 @user_required
 def dashboard():
     user_id = session["user_id"]
+    user = UserService.get_user_by_id(user_id)
+    if user and user.role == ROLE_PICKER:
+        data = DashboardService.picker_dashboard(user)
+        return render_template(
+            "user_picker_dashboard.html",
+            data=data,
+            user=user,
+            role_labels=ROLE_LABELS,
+        )
     stats = DashboardService.courier_stats(user_id)
-    return render_template("user_dashboard.html", stats=stats)
+    return render_template("user_dashboard.html", stats=stats, user=user, role_labels=ROLE_LABELS)
 
 
 @user_bp.route("/orders")
 @user_required
 def orders():
     user_id = session["user_id"]
+    user = UserService.get_user_by_id(user_id)
+    if user and user.role == ROLE_PICKER:
+        flash("Сборщики не загружают фото — данные появятся на главной", "info")
+        return redirect(url_for("user.dashboard"))
     page = request.args.get("page", 1, type=int)
     search = request.args.get("search", "", type=str)
 
@@ -50,10 +64,22 @@ def orders():
 @user_required
 def upload_photo(order_id):
     user_id = session["user_id"]
+    # JS-загрузка с фронтенда шлёт токен в заголовке (не в теле формы)
+    is_ajax = bool(request.headers.get("X-CSRFToken"))
 
     photo = PhotoService.save_photo(request.files.get("photo"), order_id, user_id)
 
     if not photo:
+        if is_ajax:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "Ошибка загрузки фото. Проверьте формат и размер (JPG, PNG, WebP до 16 МБ).",
+                    }
+                ),
+                400,
+            )
         flash("Ошибка загрузки фото", "error")
         return redirect(url_for("user.orders"))
 
@@ -63,6 +89,8 @@ def upload_photo(order_id):
     if user and order:
         EmailService.send_order_completion_email(order, user)
 
+    if is_ajax:
+        return jsonify({"ok": True})
     flash("Фото загружено", "success")
     return redirect(url_for("user.orders"))
 

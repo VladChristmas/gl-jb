@@ -17,6 +17,7 @@ from flask import (
 from openpyxl import Workbook
 from sqlalchemy import func
 
+from app.constants import ROLE_COURIER, ROLE_LABELS, USER_ROLES
 from app.extensions import db
 from app.models import ImportMapping, User
 from app.services.dashboard_service import DashboardService
@@ -128,10 +129,15 @@ def users():
 
     if request.method == "POST":
         fio = request.form.get("fio", "").strip()
+        role = request.form.get("role", ROLE_COURIER)
         if fio:
             try:
-                user = UserService.create_user(fio)
-                flash(f"Пользователь создан. Токен: {user.token}", "success")
+                user = UserService.create_user(fio, role=role)
+                flash(
+                    f"Пользователь создан ({ROLE_LABELS.get(user.role, user.role)}). "
+                    f"Токен: {user.token}",
+                    "success",
+                )
             except Exception:
                 db.session.rollback()
                 flash("Пользователь с таким ФИО уже существует", "error")
@@ -141,8 +147,26 @@ def users():
 
     pagination = UserService.get_all_users(page=page, search=search)
     return render_template(
-        "admin_users.html", users=pagination.items, pagination=pagination, search=search
+        "admin_users.html",
+        users=pagination.items,
+        pagination=pagination,
+        search=search,
+        role_labels=ROLE_LABELS,
+        user_roles=USER_ROLES,
     )
+
+
+@admin_bp.route("/users/role/<int:user_id>", methods=["POST"])
+@admin_required
+def set_user_role(user_id):
+    role = request.form.get("role", "")
+    if role in USER_ROLES:
+        user = UserService.set_role(user_id, role)
+        if user:
+            flash(f"Роль обновлена: {ROLE_LABELS[role]}", "success")
+    else:
+        flash("Неизвестная роль", "error")
+    return redirect(url_for("admin.users"))
 
 
 @admin_bp.route("/users/delete/<int:user_id>", methods=["POST"])

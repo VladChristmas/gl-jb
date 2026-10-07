@@ -6,9 +6,10 @@
 <header class="page-header">
     <div>
         <h1>Привет, {{ session.user_fio }}</h1>
-        <p class="subtitle" style="margin-bottom: 0; text-align: left;">{{ "Все заказы подтверждены — отличная работа!" if stats.all_perfect else "Есть заказы, ожидающие фото" }}</p>
+        <p class="subtitle" style="margin-bottom: 0; text-align: left;">{{ "Нет заказов, ожидающих фото — отличная работа!" if stats.all_perfect else "Есть заказы, ожидающие фото" }}</p>
     </div>
     <div class="user-info">
+        {% if user %}<span class="badge badge-primary">{{ role_labels.get(user.role, user.role) }}</span>{% endif %}
         <a href="{{ url_for('user.chat') }}" class="btn btn-secondary">💬 Чат</a>
         <a href="{{ url_for('user.orders') }}" class="btn btn-primary">Мои заказы</a>
         <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Выйти</a>
@@ -21,7 +22,7 @@
     <div class="hero-icon">🏆</div>
     <div class="hero-content">
         <div class="hero-title">Идеально!</div>
-        <div class="hero-text">Все {{ stats.total_orders }} заказов подтверждены. Вы соблюдаете все стандарты доставки.</div>
+        <div class="hero-text">Нет заказов, ожидающих фото. Вы соблюдаете все стандарты доставки.</div>
     </div>
 </div>
 {% elif stats.pending > 0 %}
@@ -29,7 +30,7 @@
     <div class="hero-icon">📸</div>
     <div class="hero-content">
         <div class="hero-title">{{ stats.pending }} {{ 'заказ ждёт' if stats.pending == 1 else 'заказа ждут' }} фото</div>
-        <div class="hero-text">Прикрепите фото-подтверждение перед передачей заказа клиенту.</div>
+        <div class="hero-text">Загрузите фото-подтверждение по заказам с жалобами.</div>
     </div>
     <a href="{{ url_for('user.orders') }}" class="btn btn-primary">Загрузить фото</a>
 </div>
@@ -121,7 +122,7 @@
                     <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
                     <div class="activity-meta">{{ order.description[:60] if order.description else '' }}</div>
                 </div>
-                <a href="{{ url_for('user.orders') }}" class="btn btn-sm btn-primary">📷</a>
+                <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-sm btn-primary">📷</a>
             </div>
             {% endfor %}
         </div>

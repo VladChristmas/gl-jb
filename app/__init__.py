@@ -200,6 +200,21 @@ def create_app():
                     except Exception as ce:
                         db.session.rollback()
                         app.logger.info(f"Column orders.{col_name}: {ce.__class__.__name__}")
+            if "users" in inspector.get_table_names():
+                user_cols = {col["name"] for col in inspector.get_columns("users")}
+                if "role" not in user_cols:
+                    try:
+                        db.session.execute(
+                            text(
+                                "ALTER TABLE users ADD COLUMN role VARCHAR(20) "
+                                "NOT NULL DEFAULT 'courier'"
+                            )
+                        )
+                        db.session.commit()
+                        app.logger.info("Added missing column users.role")
+                    except Exception as ce:
+                        db.session.rollback()
+                        app.logger.info(f"Column users.role: {ce.__class__.__name__}")
         except Exception as e:
             app.logger.error(f"Column ensure error: {e}")
 

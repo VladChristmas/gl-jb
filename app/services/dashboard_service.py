@@ -210,7 +210,19 @@ class DashboardService:
             or 0
         )
 
-        pending = total_orders - confirmed
+        # Заказы, ожидающие фото: подтема «нужно фото» и фото ещё нет
+        # (та же логика, что и у админа — чтобы счётчики совпадали)
+        pending = (
+            db.session.query(func.count(Order.id))
+            .outerjoin(Photo, Photo.order_id == Order.id)
+            .filter(
+                Order.user_id == user_id,
+                Photo.id.is_(None),
+                _photo_required_clause(),
+            )
+            .scalar()
+            or 0
+        )
 
         total_photos = (
             db.session.query(func.count(Photo.id))
@@ -255,19 +267,23 @@ class DashboardService:
             .all()
         )
 
-        # Pending orders (need photos)
+        # Pending orders (need photos): whitelist photo topics, no photo yet
         pending_orders = (
             db.session.query(Order)
-            .filter(Order.user_id == user_id)
-            .filter(~db.session.query(Photo.id).filter(Photo.order_id == Order.id).exists())
-            .order_by(Order.created_at.desc())
+            .outerjoin(Photo, Photo.order_id == Order.id)
+            .filter(
+                Order.user_id == user_id,
+                Photo.id.is_(None),
+                _photo_required_clause(),
+            )
+            .order_by(Order.created_at.desc(), Order.id.desc())
             .limit(10)
             .all()
         )
 
         # Achievements
         achievements = DashboardService._courier_achievements(
-            total_orders, confirmed, total_photos, streak
+            total_orders, confirmed, total_photos, streak, pending
         )
 
         # Picker stats for this user (if their FIO appears in imported picker data)
@@ -291,16 +307,85 @@ class DashboardService:
         }
 
     @staticmethod
-    def _picker_block_for_fio(fio: str) -> dict | None:
-        """Personal picker metrics for a user FIO, or None if not a picker."""
-        target = fio.strip().lower()
+    def _match_picker_fio(fio: str) -> str | None:
+        """Найти значение picker_fio в заказах, совпадающее с ФИО (без учёта регистра)."""
+        target = (fio or "").strip().lower()
+        if not target:
+            return None
         distinct_rows = (
             db.session.query(Order.picker_fio).filter(Order.picker_fio.isnot(None)).distinct().all()
         )
-        match = next(
+        return next(
             (value for (value,) in distinct_rows if value and value.strip().lower() == target),
             None,
         )
+
+    @staticmethod
+    def picker_dashboard(user: User) -> dict:
+        """Дашборд сборщика: его показатели сборки, место в рейтинге и недавние сборки."""
+        match = DashboardService._match_picker_fio(user.fio)
+
+        ranked = DashboardService.picker_stats()
+        fio_lower = (user.fio or "").strip().lower()
+        rank = next(
+            (i + 1 for i, item in enumerate(ranked) if item["fio"].strip().lower() == fio_lower),
+            None,
+        )
+
+        block = DashboardService._picker_block_for_fio(user.fio) if match else None
+
+        recent = []
+        if match:
+            recent = (
+                Order.query.filter(Order.picker_fio == match)
+                .order_by(Order.created_at.desc(), Order.id.desc())
+                .limit(20)
+                .all()
+            )
+
+        achievements = []
+        if block:
+            picked = int(block.get("pick_count") or 0)
+            achievements = [
+                {
+                    "name": "Первая сборка",
+                    "icon": "📦",
+                    "desc": "Соберите 1 заказ",
+                    "earned": picked >= 1,
+                },
+                {
+                    "name": "25 сборок",
+                    "icon": "🧺",
+                    "desc": "Соберите 25 заказов",
+                    "earned": picked >= 25,
+                },
+                {
+                    "name": "100 сборок",
+                    "icon": "💯",
+                    "desc": "Соберите 100 заказов",
+                    "earned": picked >= 100,
+                },
+                {
+                    "name": "Топ-10",
+                    "icon": "🏆",
+                    "desc": "Войдите в топ-10 сборщиков",
+                    "earned": rank is not None and rank <= 10,
+                },
+            ]
+
+        return {
+            "has_data": block is not None,
+            "block": block,
+            "recent": recent,
+            "rank": rank,
+            "pickers_count": len(ranked),
+            "achievements": achievements,
+        }
+
+    @staticmethod
+    def _picker_block_for_fio(fio: str) -> dict | None:
+        """Personal picker metrics for a user FIO, or None if not a picker."""
+        match = DashboardService._match_picker_fio(fio)
         if match is None:
             return None
 
@@ -326,7 +411,9 @@ class DashboardService:
         }
 
     @staticmethod
-    def _courier_achievements(total: int, confirmed: int, photos: int, streak: int) -> list[dict]:
+    def _courier_achievements(
+        total: int, confirmed: int, photos: int, streak: int, pending: int = 0
+    ) -> list[dict]:
         achievements: list[dict] = []
 
         def add(name: str, icon: str, desc: str, earned: bool) -> None:
@@ -341,6 +428,6 @@ class DashboardService:
         add("Серия 25", "🌟", "25 подряд без замечаний", streak >= 25)
         add("10 фото", "📸", "Загрузите 10 фото", photos >= 10)
         add("50 фото", "🖼️", "Загрузите 50 фото", photos >= 50)
-        add("Идеальный день", "✅", "Все заказы подтверждены", total > 0 and confirmed == total)
+        add("Идеально", "✅", "Нет заказов, ожидающих фото", total > 0 and pending == 0)
 
         return achievements

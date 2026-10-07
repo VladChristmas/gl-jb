@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд сборщика{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <h1>Привет, {{ session.user_fio }}</h1>
+        <p class="subtitle" style="margin-bottom: 0; text-align: left;">
+            {% if data.has_data %}Ваши показатели сборки{% else %}Пока нет данных по вашей сборке{% endif %}
+        </p>
+    </div>
+    <div class="user-info">
+        <span class="badge badge-warning">Сборщик</span>
+        <a href="{{ url_for('user.chat') }}" class="btn btn-secondary">💬 Чат</a>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Выйти</a>
+    </div>
+</header>
+
+{% if not data.has_data %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <div class="empty-state-title">Данных пока нет</div>
+        <div class="empty-state-text">
+            Ваши показатели появятся здесь после импорта файла со столбцом «Сборщик»,
+            в котором будет указано ваше ФИО. Обратитесь к администратору.
+        </div>
+        <a href="{{ url_for('user.chat') }}" class="btn btn-primary" style="margin-top: 24px;">💬 Открыть чат</a>
+    </div>
+</div>
+{% else %}
+
+{% if data.rank %}
+<div class="hero-card hero-perfect">
+    <div class="hero-icon">🏆</div>
+    <div class="hero-content">
+        <div class="hero-title">{{ data.rank }} место из {{ data.pickers_count }}</div>
+        <div class="hero-text">Место в рейтинге сборщиков (чем выше скорость и ниже ожидание — тем лучше).</div>
+    </div>
+</div>
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ data.block.pick_count }}</div>
+        <div class="stat-label">Собрано заказов</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="font-size: 1.1rem; padding-top: 12px;">{{ data.block.wait_time }}</div>
+        <div class="stat-label">Ср. время ожидания</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="font-size: 1.1rem; padding-top: 12px;">{{ data.block.pick_speed }}</div>
+        <div class="stat-label">Скорость сборки</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ data.block.orders_count }}</div>
+        <div class="stat-label">Заказов в системе</div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h2>Достижения</h2>
+        <div class="achievements-grid">
+            {% for a in data.achievements %}
+            <div class="achievement {{ 'earned' if a.earned else 'locked' }}">
+                <div class="achievement-icon">{{ a.icon }}</div>
+                <div class="achievement-name">{{ a.name }}</div>
+                <div class="achievement-desc">{{ a.desc }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Как считается рейтинг</h2>
+        <p class="help-text">
+            Рейтинг = скорость сборки минус время ожидания. Чем выше число — тем лучше.
+            При равном рейтинге выше тот, кто собрал больше заказов.
+        </p>
+        <p class="help-text">Всего сборщиков в системе: {{ data.pickers_count }}</p>
+    </div>
+</div>
+
+{% if data.recent %}
+<div class="card">
+    <h2>Мои сборки</h2>
+    <div style="overflow-x: auto;">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Заказ</th>
+                <th>Адрес</th>
+                <th>Собрано</th>
+                <th>Ожидание</th>
+                <th>Скорость</th>
+                <th>Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in data.recent %}
+            <tr>
+                <td>{{ order.order_number or '#' ~ order.id }}</td>
+                <td>{{ order.address or '—' }}</td>
+                <td>{{ order.pick_count if order.pick_count is not none else '—' }}</td>
+                <td>{{ order.wait_time or '—' }}</td>
+                <td>{{ order.pick_speed or '—' }}</td>
+                <td>{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
