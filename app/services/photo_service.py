@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime
 
 import magic
@@ -78,10 +79,19 @@ class PhotoService:
         if not is_valid:
             return None
 
-        original_filename = secure_filename(file.filename or "")
-        ext = original_filename.rsplit(".", 1)[1].lower()
+        # validate_file уже подтвердил, что расширение допустимо.
+        # secure_filename('фото.jpg') даёт 'jpg' (без точки) — берём расширение
+        # из исходного имени, иначе IndexError на кириллических именах.
+        raw_name = (file.filename or "").strip()
+        original_filename = secure_filename(raw_name)
+        if not original_filename or "." not in original_filename:
+            original_filename = raw_name
+        ext = raw_name.rsplit(".", 1)[-1].lower() if "." in raw_name else "jpg"
+        if ext not in ALLOWED_EXTENSIONS:
+            ext = "jpg"
+        # uuid-суффикс: две загрузки в одну секунду не перезаписывают файл
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{order_id}_{timestamp}.{ext}"
+        filename = f"{order_id}_{timestamp}_{uuid.uuid4().hex[:8]}.{ext}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
 
         # Ensure upload folder exists
@@ -111,14 +121,42 @@ class PhotoService:
         if not photo:
             return False
 
-        filepath = os.path.join(UPLOAD_FOLDER, photo.filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        return PhotoService._remove_photo(photo)
 
+    @staticmethod
+    def delete_photo_admin(photo_id: int, order_id: int) -> bool:
+        """Удаление фото администратором (без привязки к владельцу заказа)."""
+        photo = Photo.query.filter_by(id=photo_id, order_id=order_id).first()
+        if not photo:
+            return False
+        return PhotoService._remove_photo(photo)
+
+    @staticmethod
+    def _remove_photo(photo: Photo) -> bool:
+        """Удаляет файл (если есть) и строку в БД. Файл убирается после коммита."""
+        filepath = os.path.join(UPLOAD_FOLDER, photo.filename)
         db.session.delete(photo)
         db.session.commit()
         OrderService.invalidate_stats_cache()
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
         return True
+
+    @staticmethod
+    def remove_files(filenames: list[str]) -> None:
+        """Удаляет файлы из uploads (используется при каскадном удалении заказов/пользователей)."""
+        for name in filenames:
+            if not name:
+                continue
+            fp = os.path.join(UPLOAD_FOLDER, name)
+            if os.path.isfile(fp):
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
 
     @staticmethod
     def get_user_order(order_id: int, user_id: int) -> Order | None:

@@ -11,7 +11,7 @@
 <div class="card">
     <h2>Инструкция</h2>
     <ul>
-        <li>Файл должен быть в формате <strong>.xlsx</strong> или <strong>.xls</strong></li>
+        <li>Файл должен быть в формате <strong>.xlsx</strong> (старый .xls сохраните заново: Excel → Сохранить как → Книга Excel .xlsx)</li>
         <li>В файле должна быть колонка с ФИО (названия: "ФИО", "fio", "ФИО клиента", "Фамилия Имя Отчество")</li>
         <li>Остальные колонки будут сохранены в описании заказа</li>
         <li>Заказы привяжутся к пользователям по ФИО (пользователи должны быть созданы заранее)</li>
@@ -23,7 +23,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="excel_file">Выберите файл</label>
-        <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+        <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
     </div>
     <button type="submit" class="btn btn-primary">Загрузить</button>
 </form>

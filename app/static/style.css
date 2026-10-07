@@ -496,6 +496,20 @@ textarea:focus-visible,
     border: 1px solid var(--border-light);
 }
 
+/* Контейнер с горизонтальным скроллом — широкие таблицы
+   не рвут вёрстку на узких экранах (вместо скролла всей страницы) */
+.table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-lg);
+    max-width: 100%;
+}
+
+.table-wrap .table {
+    margin-bottom: 0;
+}
+
 .table th,
 .table td {
     padding: 14px 16px;
@@ -768,6 +782,13 @@ textarea:focus-visible,
     background: rgba(255, 159, 10, 0.1);
     color: var(--badge-warning-fg);
     border-color: rgba(255, 159, 10, 0.2);
+}
+
+.flash-info,
+.flash {
+    background: rgba(10, 132, 255, 0.1);
+    color: var(--badge-info-fg, #0a84ff);
+    border-color: rgba(10, 132, 255, 0.2);
 }
 
 .order-info {
@@ -1220,14 +1241,25 @@ textarea:focus-visible,
 /* ========== DASHBOARD ========== */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr) — иначе min-content карточек (таблицы, длинные строки)
+       раздувает колонку и страница скроллится по горизонтали на мобильных */
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
 }
 
+.dashboard-grid > * {
+    min-width: 0;
+}
+
+.dashboard-grid .card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 @media (min-width: 768px) {
     .dashboard-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 }
 

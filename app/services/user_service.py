@@ -47,9 +47,24 @@ class UserService:
     def delete_user(user_id: int) -> User | None:
         user = db.session.get(User, user_id)
         if user:
+            from app.models.order import Order
+            from app.models.photo import Photo
+            from app.services.photo_service import PhotoService
+
+            # Файлы фото всех заказов пользователя — до каскадного удаления
+            filenames = [
+                row[0]
+                for row in (
+                    db.session.query(Photo.filename)
+                    .join(Order, Photo.order_id == Order.id)
+                    .filter(Order.user_id == user_id)
+                    .all()
+                )
+            ]
             db.session.delete(user)
             db.session.commit()
             _invalidate_stats()
+            PhotoService.remove_files(filenames)
         return user
 
     @staticmethod

@@ -11,7 +11,7 @@
 <!-- Stats Cards -->
 <div class="stats-grid stats-grid-2">
     <div class="stat-card">
-        <div class="stat-number">{{ stats.users_count }}</div>
+        <div class="stat-number">{{ stats.couriers_count }}</div>
         <div class="stat-label">Курьеров</div>
     </div>
     <div class="stat-card">
@@ -19,6 +19,10 @@
             {{ stats.pending_count }}
         </div>
         <div class="stat-label">Ожидают фото</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.users_count }}</div>
+        <div class="stat-label">Пользователей</div>
     </div>
 </div>
 
@@ -132,6 +136,7 @@
         Заказы с подтемами, по которым нужно фото-подтверждение. Нажмите на заказ, чтобы открыть подробную информацию.
     </p>
     {% if stats.pending_orders %}
+    <div class="table-wrap">
     <table class="table">
         <thead>
             <tr>
@@ -162,6 +167,7 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
     <p class="help-text" style="margin-top: 8px;">
         <a href="{{ url_for('admin.orders') }}">Все заказы (с фото и ждущие фото) →</a>
     </p>

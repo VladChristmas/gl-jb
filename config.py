@@ -6,20 +6,31 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+# Секреты — ОБЯЗАТЕЛЬНО задайте в .env (без дефолтов!)
+_SECRET_KEY = os.environ.get("SECRET_KEY")
+if not _SECRET_KEY:
+    raise RuntimeError("SECRET_KEY must be set in .env")
+SECRET_KEY: str = _SECRET_KEY
 
 # Пароль администратора — ОБЯЗАТЕЛЬНО задайте в .env (нет дефолта!)
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
-if not ADMIN_PASSWORD:
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+if not _ADMIN_PASSWORD:
     raise RuntimeError("ADMIN_PASSWORD must be set in .env")
+ADMIN_PASSWORD: str = _ADMIN_PASSWORD
 
-# Токен суперадмина (5 символов A-Z, 0-9)
-ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "VSE5H")
+# Токен суперадмина — ОБЯЗАТЕЛЬНО задайте в .env (нет дефолта!)
+_ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN")
+if not _ADMIN_TOKEN:
+    raise RuntimeError("ADMIN_TOKEN must be set in .env")
+ADMIN_TOKEN: str = _ADMIN_TOKEN
 
 DATABASE_URL = os.environ.get("DATABASE_URL", f'sqlite:///{BASE_DIR / "database.db"}')
 DATABASE_PATH = str(BASE_DIR / "database.db")
 
-UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
+# Путь к загрузкам обязан быть абсолютным: Flask отдаёт файлы от app.root_path,
+# относительный путь ("uploads") давал 404 при отдаче и путаницу при записи.
+_upload_folder = os.environ.get("UPLOAD_FOLDER", str(BASE_DIR / "uploads"))
+UPLOAD_FOLDER = _upload_folder if os.path.isabs(_upload_folder) else str(BASE_DIR / _upload_folder)
 MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}

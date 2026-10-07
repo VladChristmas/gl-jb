@@ -1,3 +1,4 @@
+import hmac
 import io
 import os
 from datetime import datetime
@@ -17,13 +18,14 @@ from flask import (
 from openpyxl import Workbook
 from sqlalchemy import func
 
-from app.constants import ROLE_COURIER, ROLE_LABELS, USER_ROLES
-from app.extensions import db
+from app.constants import ROLE_ADMIN, ROLE_COURIER, ROLE_LABELS, USER_ROLES
+from app.extensions import db, limiter
 from app.models import ImportMapping, User
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.import_service import ImportService
 from app.services.order_service import OrderService
+from app.services.photo_service import PhotoService
 from app.services.user_service import UserService
 from config import ADMIN_TOKEN, UPLOAD_FOLDER
 
@@ -37,6 +39,17 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not session.get("is_admin"):
             return redirect(url_for("auth.admin_login"))
+        # Роль перепроверяется в БД — отзыв прав действует немедленно
+        user_id = session.get("user_id")
+        if user_id:
+            user = db.session.get(User, user_id)
+            if user is None:
+                session.clear()
+                return redirect(url_for("auth.admin_login"))
+            if user.role != ROLE_ADMIN:
+                session.clear()
+                flash("Права администратора отозваны", "error")
+                return redirect(url_for("auth.unified_login"))
         return f(*args, **kwargs)
 
     return decorated_function
@@ -73,7 +86,10 @@ def pickers():
 @admin_required
 def couriers():
     complaints_data = DashboardService.complaint_couriers()
-    users_count = db.session.query(func.count(User.id)).scalar() or 0
+    # «Курьеров» — только пользователи с ролью courier (раньше считались все роли)
+    users_count = (
+        db.session.query(func.count(User.id)).filter(User.role == ROLE_COURIER).scalar() or 0
+    )
     # Ждут фото: только подтемы «нужно фото» и фото ещё нет
     awaiting_photo = sum(
         1 for row in complaints_data if row["photo_required"] and not row["has_photos"]
@@ -88,6 +104,7 @@ def couriers():
 
 
 @admin_bp.route("/api/pending_count")
+@limiter.exempt
 def api_pending_count():
     """Живой счётчик заказов, ждущих подтверждения (для polling на дашборде)."""
     if not session.get("is_admin"):
@@ -102,7 +119,9 @@ def api_files():
     Auth: admin session OR X-Admin-Token header with the superadmin token.
     """
     token = request.headers.get("X-Admin-Token", "")
-    if not session.get("is_admin") and token != ADMIN_TOKEN:
+    if not session.get("is_admin") and not (
+        token and ADMIN_TOKEN and hmac.compare_digest(token, ADMIN_TOKEN)
+    ):
         return jsonify({"error": "unauthorized"}), 401
 
     folder = os.path.abspath(UPLOAD_FOLDER)
@@ -196,8 +215,16 @@ def upload_excel():
             flash("Файл не выбран", "error")
             return redirect(url_for("admin.upload_excel"))
 
-        if not file.filename.endswith((".xlsx", ".xls")):
-            flash("Неверный формат файла. Нужен .xlsx или .xls", "error")
+        if file.filename.endswith(".xls"):
+            flash(
+                "Формат .xls не поддерживается — сохраните файл как .xlsx "
+                "(Excel: Файл → Сохранить как → Книга Excel .xlsx)",
+                "error",
+            )
+            return redirect(url_for("admin.upload_excel"))
+
+        if not file.filename.endswith(".xlsx"):
+            flash("Неверный формат файла. Нужен .xlsx", "error")
             return redirect(url_for("admin.upload_excel"))
 
         try:
@@ -306,8 +333,12 @@ def import_excel():
             flash("Файл не выбран", "error")
             return redirect(url_for("admin.import_excel"))
 
-        if not file.filename.endswith((".xlsx", ".xls")):
-            flash("Неверный формат файла. Нужен .xlsx или .xls", "error")
+        if file.filename.endswith(".xls"):
+            flash("Формат .xls не поддерживается — сохраните файл как .xlsx", "error")
+            return redirect(url_for("admin.import_excel"))
+
+        if not file.filename.endswith(".xlsx"):
+            flash("Неверный формат файла. Нужен .xlsx", "error")
             return redirect(url_for("admin.import_excel"))
 
         mapping = ImportMapping.query.get_or_404(mapping_id)
@@ -339,6 +370,10 @@ def orders():
     user_filter = request.args.get("user_id", "", type=str)
     photo_filter = request.args.get("photo_filter", "", type=str)
 
+    # Валидация: user_id должен быть числом, иначе фильтр игнорируется (раньше → 500)
+    if user_filter and not user_filter.isdigit():
+        user_filter = ""
+
     pagination, orders_with_users = OrderService.get_all_orders(
         page=page, search=search, user_filter=user_filter, photo_filter=photo_filter
     )
@@ -366,10 +401,16 @@ def send_order_email(order_id):
 
     order, user = result
 
-    if EmailService.send_order_completion_email(order, user):
+    if not EmailService.is_configured():
+        flash(
+            "Почта не настроена: задайте MAIL_USERNAME, MAIL_PASSWORD и "
+            "MAIL_ADMIN_RECIPIENTS в настройках сервера",
+            "warning",
+        )
+    elif EmailService.send_order_completion_email(order, user):
         flash("Email отправлен администраторам", "success")
     else:
-        flash("Ошибка отправки (проверьте настройки почты)", "error")
+        flash("Ошибка отправки письма — подробности в логах сервера (logs/app.log)", "error")
 
     return redirect(url_for("admin.orders"))
 
@@ -400,10 +441,32 @@ def edit_order(order_id):
     return render_template("admin_edit_order.html", order=order)
 
 
+@admin_bp.route("/orders/<int:order_id>/photos")
+@admin_required
+def order_photos(order_id):
+    order = OrderService.get_order_by_id(order_id)
+    if not order:
+        flash("Заказ не найден", "error")
+        return redirect(url_for("admin.orders"))
+
+    photos = PhotoService.get_order_photos(order_id)
+    return render_template("user_order_photos.html", order=order, photos=photos, admin_view=True)
+
+
+@admin_bp.route("/orders/<int:order_id>/photos/delete/<int:photo_id>", methods=["POST"])
+@admin_required
+def delete_photo(order_id, photo_id):
+    if PhotoService.delete_photo_admin(photo_id, order_id):
+        flash("Фото удалено", "success")
+    else:
+        flash("Фото не найдено", "error")
+    return redirect(url_for("admin.order_photos", order_id=order_id))
+
+
 @admin_bp.route("/export_excel")
 @admin_required
 def export_excel():
-    from app.models import Order, User
+    from app.models import Order, Photo, User
 
     wb = Workbook()
     ws = wb.active
@@ -414,6 +477,11 @@ def export_excel():
 
     orders = db.session.query(Order, User).join(User).order_by(Order.created_at.desc()).all()
 
+    # Один запрос на все счётчики фото вместо len(order.photos) на каждый заказ (N+1)
+    photo_counts = dict(
+        db.session.query(Photo.order_id, func.count(Photo.id)).group_by(Photo.order_id).all()
+    )
+
     for order, user in orders:
         ws.append(
             [
@@ -423,7 +491,7 @@ def export_excel():
                 order.order_number,
                 order.description,
                 order.created_at.strftime("%Y-%m-%d %H:%M:%S") if order.created_at else "",
-                len(order.photos),
+                photo_counts.get(order.id, 0),
             ]
         )
 

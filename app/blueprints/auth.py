@@ -1,3 +1,5 @@
+import hmac
+
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.constants import ROLE_ADMIN
@@ -6,6 +8,10 @@ from app.services.user_service import UserService
 from config import ADMIN_PASSWORD, ADMIN_TOKEN
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _secret_equals(value: str, secret: str) -> bool:
+    return bool(value) and bool(secret) and hmac.compare_digest(value, secret)
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -18,7 +24,7 @@ def unified_login():
             flash("Введите токен", "error")
             return render_template("unified_login.html")
 
-        if token == ADMIN_TOKEN:
+        if _secret_equals(token, ADMIN_TOKEN):
             session["is_admin"] = True
             return redirect(url_for("admin.dashboard"))
 
@@ -48,7 +54,7 @@ def logout():
 def admin_login():
     if request.method == "POST":
         password = request.form.get("password", "")
-        if password == ADMIN_PASSWORD:
+        if _secret_equals(password, ADMIN_PASSWORD):
             session["is_admin"] = True
             return redirect(url_for("admin.dashboard"))
         flash("Неверный пароль", "error")
@@ -60,7 +66,7 @@ def admin_login():
 def admin_token_login():
     if request.method == "POST":
         token = request.form.get("token", "").strip()
-        if token == ADMIN_TOKEN:
+        if _secret_equals(token, ADMIN_TOKEN):
             session["is_admin"] = True
             return redirect(url_for("admin.dashboard"))
         flash("Неверный токен суперадмина", "error")

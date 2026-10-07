@@ -37,7 +37,7 @@
                 <div class="activity-title" style="font-weight: 400; white-space: pre-wrap;">{{ m.text }}</div>
             </div>
             {% if is_admin %}
-            <form method="post" action="{{ url_for('user.delete_message', message_id=m.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить сообщение?')">
+            <form method="post" action="{{ url_for('user.delete_message', message_id=m.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить сообщение?', event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
             </form>

@@ -38,6 +38,7 @@
         «Не учли комментарий к заказу», «Принесли чужой заказ»
     </p>
     {% if complaints %}
+    <div class="table-wrap">
     <table class="table table-keep-actions">
         <thead>
             <tr>
@@ -62,7 +63,7 @@
                 <td>{{ c.order_number }}</td>
                 <td>
                     {% if c.photo_required %}
-                    <a href="{{ url_for('user.order_photos', order_id=c.order_id) }}" class="btn btn-sm btn-primary">
+                    <a href="{{ url_for('admin.order_photos', order_id=c.order_id) }}" class="btn btn-sm btn-primary">
                         📷 {% if c.has_photos %}Фото{% else %}Запросить фото{% endif %}
                     </a>
                     {% else %}
@@ -73,6 +74,7 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
     <p class="help-text" style="margin-top: 8px;">
         Для каждого заказа с жалобой показан курьер (столбец «Курьер»), адрес, время доставки, ID и номер заказа.
         Загружено заказов: {{ complaints|length }}.

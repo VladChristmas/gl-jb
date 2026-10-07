@@ -88,7 +88,7 @@ foreach ($f in $remote) {
     $tmp = "$target.part"
     try {
         $url = "$BaseUrl/uploads/$([uri]::EscapeDataString($f.name))"
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -TimeoutSec 180
+        Invoke-WebRequest -Uri $url -OutFile $tmp -Headers @{ 'X-Admin-Token' = $token } -UseBasicParsing -TimeoutSec 180
         $gotSize = (Get-Item $tmp).Length
         if ($gotSize -ne $f.size) {
             throw "size mismatch: got $gotSize, expected $($f.size)"

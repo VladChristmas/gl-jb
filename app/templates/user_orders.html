@@ -39,7 +39,7 @@
             </div>
             <div class="order-description">{{ order.description }}</div>
             <div class="order-actions">
-                <div class="drop-zone" id="drop-zone-{{ order.id }}">
+                <div class="drop-zone" id="drop-zone-{{ order.id }}" data-order-id="{{ order.id }}">
                     <input type="file" name="photo" id="file-input-{{ order.id }}" accept="image/*" capture="environment" hidden>
                     <div class="drop-zone-content">
                         <svg class="upload-icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -96,10 +96,12 @@ enableLiveSearch('search');
 // Drag and drop upload functionality
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.drop-zone').forEach(zone => {
-        const orderId = zone.dataset.orderId;
+        const orderId = zone.dataset.orderId || (zone.id || '').replace(/^drop-zone-/, '');
+        if (!orderId) return;
         const fileInput = document.getElementById(`file-input-${orderId}`);
         const uploadBtn = document.querySelector(`.upload-btn[data-order-id="${orderId}"]`);
         const preview = zone.querySelector('.drop-zone-preview');
+        if (!fileInput || !uploadBtn || !preview) return;
         let selectedFile = null;
 
         // Click to select file

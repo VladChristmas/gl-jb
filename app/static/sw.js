@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gl_jb-v2';
+const CACHE_NAME = 'gl_jb-v3';
 const STATIC_ASSETS = [
   '/static/manifest.json',
   '/static/style.css',
@@ -129,9 +129,13 @@ async function networkFirst(request) {
       return cached;
     }
     
-    // Return offline page for HTML requests
+    // Offline fallback for HTML requests: saved page → home → plain message
     if (request.headers.get('accept')?.includes('text/html')) {
-      return caches.match('/') || new Response('Offline', { status: 503 });
+      const saved = await caches.match(request);
+      if (saved) return saved;
+      const home = await caches.match('/');
+      if (home) return home;
+      return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     }
     
     return new Response('Offline', { status: 503 });

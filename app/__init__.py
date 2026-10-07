@@ -25,6 +25,15 @@ from config import (
 
 def create_app():
     app = Flask(__name__)
+
+    # Render runs the app behind a proxy — take the real client IP/protocol from
+    # X-Forwarded-For. Without this ALL users share one rate-limit bucket (proxy IP).
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+    )
+
     app.config["SECRET_KEY"] = SECRET_KEY
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
     app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER

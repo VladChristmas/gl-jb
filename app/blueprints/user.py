@@ -16,8 +16,15 @@ def user_required(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("user_id"):
+        user_id = session.get("user_id")
+        if not user_id:
             return redirect(url_for("auth.unified_login"))
+        # Роль перечитывается из БД — смена роли действует сразу
+        user = UserService.get_user_by_id(user_id)
+        if user is None:
+            session.clear()
+            return redirect(url_for("auth.unified_login"))
+        session["user_role"] = user.role
         return f(*args, **kwargs)
 
     return decorated_function

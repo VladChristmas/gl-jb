@@ -36,7 +36,8 @@
     {% endif %}
 </form>
 
-<table class="table">
+<div class="table-wrap">
+    <table class="table">
     <thead>
         <tr>
             <th>№</th>
@@ -80,7 +81,7 @@
             <td>
                 <span class="badge">{{ item.photos_count }}</span>
                 {% if item.photos_count > 0 %}
-                <a href="{{ url_for('user.order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
+                <a href="{{ url_for('admin.order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
                 {% endif %}
             </td>
             <td>{{ item.order.created_at }}</td>
@@ -92,7 +93,7 @@
                     <button type="submit" class="btn btn-sm btn-secondary" title="Отправить email с фото">📧 Отправить</button>
                 </form>
                 {% endif %}
-                <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить заказ #{{ item.order.id }}? Все фото будут удалены.')">
+                <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить заказ #{{ item.order.id }}? Все фото будут удалены.', event)">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                 </form>
@@ -116,6 +117,7 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if pagination.pages > 1 %}
 <nav class="pagination">
@@ -129,6 +131,9 @@
 </nav>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
 enableLiveSearch('search');
 </script>

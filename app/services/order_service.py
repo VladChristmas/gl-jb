@@ -74,7 +74,11 @@ class OrderService:
             )
 
         if user_filter:
-            query = query.filter(User.id == user_filter)
+            # Фильтр принимается только числовой ID — иначе 500 (invalid literal for int)
+            if user_filter.isdigit():
+                query = query.filter(User.id == int(user_filter))
+            else:
+                user_filter = ""
 
         if photo_filter == "with_photos":
             query = query.filter(Order.photos.any())
@@ -117,9 +121,16 @@ class OrderService:
     def delete_order(order_id: int) -> bool:
         order = db.session.get(Order, order_id)
         if order:
+            from app.services.photo_service import PhotoService
+
+            filenames = [
+                row[0]
+                for row in db.session.query(Photo.filename).filter_by(order_id=order_id).all()
+            ]
             db.session.delete(order)
             db.session.commit()
             OrderService.invalidate_stats_cache()
+            PhotoService.remove_files(filenames)
             return True
         return False
 

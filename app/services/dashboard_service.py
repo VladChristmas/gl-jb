@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import case, distinct, func, or_
 
-from app.constants import PHOTO_REQUIRED_TOPICS
+from app.constants import PHOTO_REQUIRED_TOPICS, ROLE_COURIER
 from app.extensions import db
 from app.models.order import Order
 from app.models.photo import Photo
@@ -29,6 +29,9 @@ class DashboardService:
     @staticmethod
     def admin_stats() -> dict:
         users_count = db.session.query(func.count(User.id)).scalar() or 0
+        couriers_count = (
+            db.session.query(func.count(User.id)).filter(User.role == ROLE_COURIER).scalar() or 0
+        )
         orders_count = db.session.query(func.count(Order.id)).scalar() or 0
         photos_count = db.session.query(func.count(Photo.id)).scalar() or 0
 
@@ -74,6 +77,7 @@ class DashboardService:
 
         return {
             "users_count": users_count,
+            "couriers_count": couriers_count,
             "orders_count": orders_count,
             "photos_count": photos_count,
             "orders_with_photos": orders_with_photos,
@@ -177,6 +181,8 @@ class DashboardService:
             .order_by(Order.created_at.desc(), Order.id.desc())
             .all()
         )
+        # Один запрос вместо запроса фото на каждый заказ (N+1)
+        photo_order_ids = {oid for (oid,) in db.session.query(Photo.order_id).distinct()}
         return [
             {
                 "order_id": order.id,
@@ -186,7 +192,7 @@ class DashboardService:
                 "external_id": order.external_id or "—",
                 "order_number": order.order_number or f"#{order.id}",
                 "complaint_text": order.complaint_text or "",
-                "has_photos": bool(order.photos),
+                "has_photos": order.id in photo_order_ids,
                 # Жалобы ждут фото, если complaint_text содержит одну из подтем списка
                 "photo_required": any(
                     topic in (order.complaint_text or "") for topic in PHOTO_REQUIRED_TOPICS

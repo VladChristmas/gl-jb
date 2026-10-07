@@ -20,7 +20,7 @@
     <p><strong>Создан:</strong> {{ order.created_at }}</p>
     <p><strong>Фото:</strong> {{ order.photos|length }}</p>
     {% if order.photos %}
-    <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+    <a href="{{ url_for('admin.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
     {% endif %}
 </div>
 

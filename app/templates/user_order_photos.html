@@ -5,7 +5,11 @@
 {% block content %}
 <header class="page-header">
     <h1>Фото заказа #{{ order.id }}</h1>
+    {% if admin_view %}
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Назад к заказам</a>
+    {% else %}
     <a href="{{ url_for('user.orders') }}" class="btn btn-secondary">Назад к заказам</a>
+    {% endif %}
 </header>
 
 <div class="order-info">
@@ -23,7 +27,7 @@
             <div class="photo-meta">
                 <p>{{ photo.original_filename }}</p>
                 <small>{{ photo.uploaded_at }}</small>
-                <form method="post" action="{{ url_for('user.delete_photo', order_id=order.id, photo_id=photo.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить это фото?')" style="margin-top: 0.5rem;">
+                <form method="post" action="{% if admin_view %}{{ url_for('admin.delete_photo', order_id=order.id, photo_id=photo.id) }}{% else %}{{ url_for('user.delete_photo', order_id=order.id, photo_id=photo.id) }}{% endif %}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить это фото?', event)" style="margin-top: 0.5rem;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить фото</button>
                 </form>

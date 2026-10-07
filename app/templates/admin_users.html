@@ -36,7 +36,8 @@
     {% endif %}
 </form>
 
-<table class="table">
+<div class="table-wrap">
+    <table class="table">
     <thead>
         <tr>
             <th>ФИО</th>
@@ -67,11 +68,11 @@
                     </select>
                     <button type="submit" class="btn btn-secondary btn-sm">Сменить роль</button>
                 </form>
-                <form method="post" action="{{ url_for('admin.regenerate_token', user_id=user.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Перегенерировать токен для {{ user.fio }}?')">
+                <form method="post" action="{{ url_for('admin.regenerate_token', user_id=user.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Перегенерировать токен для {{ user.fio }}?', event)">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-secondary btn-sm">Новый токен</button>
                 </form>
-                <form method="post" action="{{ url_for('admin.delete_user', user_id=user.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить пользователя {{ user.fio }}? Все заказы и фото будут удалены.')">
+                <form method="post" action="{{ url_for('admin.delete_user', user_id=user.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить пользователя {{ user.fio }}? Все заказы и фото будут удалены.', event)">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                 </form>
@@ -95,6 +96,7 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if pagination.pages > 1 %}
 <nav class="pagination">

@@ -47,7 +47,7 @@ Flask-приложение для управления заказами и фо�
 - **CSS**: CSS-переменные, мобильный-first, сетки, карточки, таблицы, бейджи, флеш-сообщения, пагинация, inline forms
 
 ### Конфигурация (config.py)
-- `SECRET_KEY`, `ADMIN_PASSWORD`, `ADMIN_TOKEN` — из env с дефолтами
+- `SECRET_KEY`, `ADMIN_PASSWORD`, `ADMIN_TOKEN` — строго из env, без дефолтов (иначе RuntimeError)
 - `DATABASE_URL`, `DATABASE_PATH`, `UPLOAD_FOLDER` — из env
 - `MAX_CONTENT_LENGTH = 16MB`
 - `ALLOWED_EXTENSIONS = {png, jpg, jpeg, webp}`
@@ -185,5 +185,5 @@ photos:
 - БД — SQLite файл `database.db` в корне проекта (миграции в `migrations/`)
 - Загруженные фото в `uploads/` (создаётся автоматически)
 - Логи в `logs/app.log` (ротация 10 файлов по 10KB)
-- Для продакшена: сменить дефолтные секреты в `.env`, настроить HTTPS, рассмотреть PostgreSQL
+- Для продакшена: задать секреты в `.env` (их нет в репозитории), настроить HTTPS, рассмотреть PostgreSQL
 - Rate limiting использует in-memory storage (`memory://`) — для продакшена с несколькими воркерами нужен Redis (`RATELIMIT_STORAGE_URL=redis://...`)
