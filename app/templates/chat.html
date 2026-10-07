@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Информационный чат{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Информационный чат</h1>
+    <a href="{{ url_for('admin.dashboard') if is_admin else url_for('user.dashboard') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+{% if is_admin %}
+<div class="card">
+    <h2>Новое сообщение</h2>
+    <p class="help-text" style="margin-top: 0;">Сообщение увидят все курьеры и сборщики.</p>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="message-text">Текст сообщения</label>
+            <textarea id="message-text" name="text" rows="4" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Опубликовать</button>
+    </form>
+</div>
+{% else %}
+<p class="help-text" style="margin-top: 0;">Сообщения публикует администратор. Здесь отображаются объявления и важные новости.</p>
+{% endif %}
+
+<div class="card">
+    <h2>Сообщения</h2>
+    {% if messages %}
+    <div class="activity-list">
+        {% for m in messages %}
+        <div class="activity-item">
+            <div class="activity-icon">📢</div>
+            <div class="activity-body">
+                <div class="activity-meta">Администратор · {{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '—' }}</div>
+                <div class="activity-title" style="font-weight: 400; white-space: pre-wrap;">{{ m.text }}</div>
+            </div>
+            {% if is_admin %}
+            <form method="post" action="{{ url_for('user.delete_message', message_id=m.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить сообщение?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-title">Сообщений пока нет</div>
+        <div class="empty-state-text">Как только администратор опубликует сообщение, оно появится здесь.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

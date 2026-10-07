@@ -2,6 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
+from app.services.message_service import MessageService
 from app.services.order_service import OrderService
 from app.services.photo_service import PhotoService
 from app.services.user_service import UserService
@@ -92,3 +93,36 @@ def delete_photo(order_id, photo_id):
         flash("Фото не найдено", "error")
 
     return redirect(url_for("user.order_photos", order_id=order_id))
+
+
+@user_bp.route("/chat", methods=["GET", "POST"])
+def chat():
+    """Информационный чат: читают курьеры и сборщики, пишут только администраторы."""
+    if not session.get("user_id") and not session.get("is_admin"):
+        return redirect(url_for("auth.unified_login"))
+
+    if request.method == "POST":
+        if not session.get("is_admin"):
+            flash("Писать в чат может только администратор", "error")
+            return redirect(url_for("user.chat"))
+        if MessageService.create_message(request.form.get("text", "")):
+            flash("Сообщение опубликовано", "success")
+        else:
+            flash("Сообщение не может быть пустым", "error")
+        return redirect(url_for("user.chat"))
+
+    return render_template(
+        "chat.html",
+        messages=MessageService.get_messages(),
+        is_admin=bool(session.get("is_admin")),
+    )
+
+
+@user_bp.route("/chat/delete/<int:message_id>", methods=["POST"])
+def delete_message(message_id):
+    if not session.get("is_admin"):
+        flash("Удалять сообщения может только администратор", "error")
+        return redirect(url_for("user.chat"))
+    if MessageService.delete_message(message_id):
+        flash("Сообщение удалено", "success")
+    return redirect(url_for("user.chat"))

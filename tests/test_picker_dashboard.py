@@ -625,11 +625,12 @@ class TestDashboardRestructure:
         assert "Общий процент выполнения" in html
         # Two equal stat cards
         assert "stats-grid-2" in html
-        # Quick actions: only users, orders, pickers, couriers
+        # Quick actions: users, orders, pickers, couriers, chat
         assert "Пользователи" in html
         assert "Все заказы" in html
         assert "Сборщики" in html
         assert "Курьеры" in html
+        assert "Чат" in html
         # Best pickers and best couriers
         assert "Лучшие сборщики" in html
         assert "Лучшие курьеры" in html

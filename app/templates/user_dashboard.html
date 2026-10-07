@@ -9,6 +9,7 @@
         <p class="subtitle" style="margin-bottom: 0; text-align: left;">{{ "Все заказы подтверждены — отличная работа!" if stats.all_perfect else "Есть заказы, ожидающие фото" }}</p>
     </div>
     <div class="user-info">
+        <a href="{{ url_for('user.chat') }}" class="btn btn-secondary">💬 Чат</a>
         <a href="{{ url_for('user.orders') }}" class="btn btn-primary">Мои заказы</a>
         <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Выйти</a>
     </div>
