@@ -96,9 +96,11 @@ def upload_photo(order_id):
     if user and order:
         EmailService.send_order_completion_email(order, user)
 
+    # flash ставится в обеих ветках: после JSON-ответа JS делает reload,
+    # и подтверждение «Фото загружено» видно на обновлённой странице
+    flash("Фото загружено", "success")
     if is_ajax:
         return jsonify({"ok": True})
-    flash("Фото загружено", "success")
     return redirect(url_for("user.orders"))
 
 
