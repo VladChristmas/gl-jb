@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты операционного анализа{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.operational_analysis') }}" class="btn-back">‹ К операционному анализу</a>
+<div class="page-header">
+    <h1>Результаты анализа</h1>
+    <div>
+        <a href="{{ url_for('admin.operational_analysis_export', session_id=results.session.id) }}" class="btn btn-secondary">Экспорт в Excel</a>
+    </div>
+</div>
+
+<!-- Информация о сессии -->
+<div class="card">
+    <h2>Информация о файле</h2>
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.total_orders }}</div>
+            <div class="stat-label">Заказов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.total_complaints }}</div>
+            <div class="stat-label">Жалоб</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.total_assembly_orders }}</div>
+            <div class="stat-label">Собранных заказов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.matched_orders }}</div>
+            <div class="stat-label">Сопоставлено</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.error_count }}</div>
+            <div class="stat-label">Ошибок</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.warning_count }}</div>
+            <div class="stat-label">Предупреждений</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ results.session.wait_threshold_minutes }}</div>
+            <div class="stat-label">Порог ожидания (мин)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Фильтры -->
+<div class="card">
+    <h2>Фильтры</h2>
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label for="picker">Сборщик</label>
+            <select id="picker" name="picker">
+                <option value="">Все</option>
+                {% for p in results.filters.pickers %}
+                <option value="{{ p }}" {% if picker == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="date_from">Дата с</label>
+            <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+        </div>
+        <div class="form-group">
+            <label for="date_to">Дата по</label>
+            <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+        </div>
+        <div class="form-group">
+            <label for="time_of_day">Время суток</label>
+            <select id="time_of_day" name="time_of_day">
+                <option value="">Все</option>
+                <option value="morning" {% if time_of_day == 'morning' %}selected{% endif %}>Утро (6–12)</option>
+                <option value="afternoon" {% if time_of_day == 'afternoon' %}selected{% endif %}>День (12–18)</option>
+                <option value="evening" {% if time_of_day == 'evening' %}selected{% endif %}>Вечер (18–24)</option>
+                <option value="night" {% if time_of_day == 'night' %}selected{% endif %}>Ночь (0–6)</option>
+            </select>
+        </div>
+        {% if results.filters.has_complaint %}
+        <div class="form-group">
+            <label for="has_complaint">Жалоба</label>
+            <select id="has_complaint" name="has_complaint">
+                <option value="">Все</option>
+                <option value="yes" {% if has_complaint == 'yes' %}selected{% endif %}>С жалобой</option>
+                <option value="no" {% if has_complaint == 'no' %}selected{% endif %}>Без жалобы</option>
+            </select>
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Применить</button>
+            <a href="{{ url_for('admin.operational_analysis_results', session_id=results.session.id) }}" class="btn btn-secondary">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+<!-- А. Сводка по сборщикам -->
+<div class="card">
+    <h2>А. Сводка по сборщикам</h2>
+    {% if results.picker_metrics %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Сборщик</th>
+                    <th>Уникальных заказов</th>
+                    <th>Среднее время сборки (мин)</th>
+                    <th>Медианное время сборки (мин)</th>
+                    <th>Скорость (заказов/мин)</th>
+                    <th>Среднее ожидание (мин)</th>
+                    <th>Заказов с жалобами</th>
+                    <th>Всего жалоб</th>
+                    <th>Доля жалоб (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pm in results.picker_metrics %}
+                <tr>
+                    <td><strong>{{ pm.picker_fio }}</strong></td>
+                    <td>{{ pm.unique_orders }}</td>
+                    <td>{{ pm.avg_assembly_time_minutes }}</td>
+                    <td>{{ pm.median_assembly_time_minutes }}</td>
+                    <td>{{ pm.speed_orders_per_minute }}</td>
+                    <td>{{ pm.avg_wait_time_minutes }}</td>
+                    <td>{{ pm.orders_with_complaints }}</td>
+                    <td>{{ pm.total_complaints }}</td>
+                    <td>{{ pm.complaint_rate }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="help-text">Нет данных по сборщикам для отображения.</p>
+    {% endif %}
+</div>
+
+<!-- Б. Детализация заказов -->
+<div class="card">
+    <h2>Б. Детализация заказов</h2>
+    {% if results.assembly_orders %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID заказа</th>
+                    <th>Дата и время</th>
+                    <th>Сборщик</th>
+                    <th>Начало сборки</th>
+                    <th>Окончание сборки</th>
+                    <th>Длительность (мин)</th>
+                    <th>Ожидание (мин)</th>
+                    <th>Товары</th>
+                    <th>Жалоба</th>
+                    <th>Кол-во жалоб</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ao in results.assembly_orders %}
+                <tr>
+                    <td>{{ ao.order_id }}</td>
+                    <td>{{ ao.assembly_start.strftime("%d.%m.%Y %H:%M") if ao.assembly_start else "—" }}</td>
+                    <td>{{ ao.picker_fio }}</td>
+                    <td>{{ ao.assembly_start.strftime("%H:%M:%S") if ao.assembly_start else "—" }}</td>
+                    <td>{{ ao.assembly_end.strftime("%H:%M:%S") if ao.assembly_end else "—" }}</td>
+                    <td>{{ ao.assembly_duration_minutes if ao.assembly_duration_minutes is not none else "—" }}</td>
+                    <td>{{ ao.wait_time_minutes if ao.wait_time_minutes is not none else "—" }}</td>
+                    <td>{{ ao.items_count or "—" }}</td>
+                    <td>{% if ao.has_complaint %}<span class="badge badge-danger">Есть</span>{% else %}<span class="badge">Нет</span>{% endif %}</td>
+                    <td>{{ ao.complaint_count }}</td>
+                    <td>{{ ao.match_status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="help-text">Нет данных по заказам для отображения.</p>
+    {% endif %}
+</div>
+
+<!-- В. Контроль качества -->
+<div class="card">
+    <h2>В. Контроль качества данных</h2>
+    {% if results.quality_issues %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Тип проблемы</th>
+                    <th>Описание</th>
+                    <th>Источник</th>
+                    <th>Критичность</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for qi in results.quality_issues %}
+                <tr>
+                    <td><span class="badge {% if qi.severity == 'error' %}badge-danger{% else %}badge-warning{% endif %}">{{ qi.issue_type }}</span></td>
+                    <td>{{ qi.description }}</td>
+                    <td>{{ qi.source_sheet }}</td>
+                    <td>{{ qi.severity }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="help-text">Проблемы качества данных не обнаружены.</p>
+    {% endif %}
+</div>
+{% endblock %}

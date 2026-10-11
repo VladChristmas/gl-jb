@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Операционный анализ{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+<div class="page-header">
+    <h1>Операционный анализ</h1>
+</div>
+
+<div class="card">
+    <h2>Загрузка Excel-файла</h2>
+    <p class="help-text">
+        Загрузите файл с тремя листами: жалобы, заказы, собранные заказы.
+        Система автоматически определит столбцы и свяжет данные по ID заказа.
+    </p>
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.operational_analysis_upload') }}" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group full-width">
+            <label for="excel_file">Файл Excel (.xlsx) *</label>
+            <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
+        </div>
+        <div class="form-group">
+            <label for="wait_threshold">Порог ожидания (мин)</label>
+            <input type="number" id="wait_threshold" name="wait_threshold" value="30" min="0" max="600">
+            <small>Заказы с ожиданием выше этого значения считаются проблемными</small>
+        </div>
+        <div class="form-group full-width">
+            <button type="submit" class="btn btn-primary">Загрузить и проанализировать</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>История анализов</h2>
+    {% if sessions %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Файл</th>
+                    <th>Дата загрузки</th>
+                    <th>Заказы</th>
+                    <th>Жалобы</th>
+                    <th>Собрано</th>
+                    <th>Ошибки</th>
+                    <th>Предупреждения</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td>{{ s.filename }}</td>
+                    <td>{{ s.uploaded_at.strftime("%d.%m.%Y %H:%M") if s.uploaded_at else "—" }}</td>
+                    <td>{{ s.total_orders }}</td>
+                    <td>{{ s.total_complaints }}</td>
+                    <td>{{ s.total_assembly_orders }}</td>
+                    <td>{{ s.error_count }}</td>
+                    <td>{{ s.warning_count }}</td>
+                    <td class="actions-cell">
+                        <a href="{{ url_for('admin.operational_analysis_results', session_id=s.id) }}" class="btn btn-sm">Результаты</a>
+                        <a href="{{ url_for('admin.operational_analysis_export', session_id=s.id) }}" class="btn btn-sm btn-secondary">Excel</a>
+                        <form method="post" action="{{ url_for('admin.operational_analysis_delete', session_id=s.id) }}" style="display:inline" onsubmit="return confirm('Удалить эту сессию?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="help-text">Пока нет загруженных файлов.</p>
+    {% endif %}
+</div>
+{% endblock %}

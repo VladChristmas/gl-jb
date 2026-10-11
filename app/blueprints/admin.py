@@ -157,7 +157,9 @@ def couriers():
         rating=rating_report,
         rating_error=rating_error,
         week_param=(
-            rating_report.get("monday", "").isoformat() if rating_report and rating_report.get("monday") else ""
+            rating_report.get("monday", "").isoformat()
+            if rating_report and rating_report.get("monday")
+            else ""
         ),
         week_links=rating_report.get("week_links") if rating_report else None,
         sort=request.args.get("sort", "score"),
@@ -184,18 +186,23 @@ def courier_detail(fio):
 
     if not courier_row:
         # Return 200 with error message to match test expectations
-        return render_template(
-            "admin_courier_detail.html",
-            courier=None,
-            rating=rating_report,
-            detail_orders=rating_report.get("detail_orders"),
-            week_param=(
-                rating_report.get("monday", "").isoformat() if rating_report.get("monday") else ""
+        return (
+            render_template(
+                "admin_courier_detail.html",
+                courier=None,
+                rating=rating_report,
+                detail_orders=rating_report.get("detail_orders"),
+                week_param=(
+                    rating_report.get("monday", "").isoformat()
+                    if rating_report.get("monday")
+                    else ""
+                ),
+                week_links=rating_report.get("week_links"),
+                search=fio,
+                error_message="Курьер не найден",
             ),
-            week_links=rating_report.get("week_links"),
-            search=fio,
-            error_message="Курьер не найден",
-        ), 200
+            200,
+        )
 
     return render_template(
         "admin_courier_detail.html",
@@ -882,7 +889,14 @@ def import_excel():
                 msg += " Ошибки: " + "; ".join(result["errors"][:5])
                 if len(result["errors"]) > 5:
                     msg += f' ... и ещё {len(result["errors"]) - 5} ошибок.'
-            flash(msg, "success" if (result.get("imported", 0) + result.get("updated", 0)) > 0 else "warning")
+            flash(
+                msg,
+                (
+                    "success"
+                    if (result.get("imported", 0) + result.get("updated", 0)) > 0
+                    else "warning"
+                ),
+            )
 
         except Exception as e:
             db.session.rollback()
@@ -949,14 +963,16 @@ def import_excel_confirm():
             if len(result["errors"]) > 5:
                 msg += f' ... и ещё {len(result["errors"]) - 5} ошибок.'
 
-        return jsonify({
-            "imported": result["imported"],
-            "updated": result["updated"],
-            "skipped": result["skipped"],
-            "duplicates": result["duplicates"],
-            "errors": result["errors"],
-            "message": msg,
-        })
+        return jsonify(
+            {
+                "imported": result["imported"],
+                "updated": result["updated"],
+                "skipped": result["skipped"],
+                "duplicates": result["duplicates"],
+                "errors": result["errors"],
+                "message": msg,
+            }
+        )
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -978,7 +994,9 @@ def import_report():
     lines = []
     lines.append(f"Файл: {report.get('file', '—')}")
     lines.append(f"Дата: {report.get('generated_at', '—')}")
-    lines.append(f"Создано: {report.get('imported', 0)}, обновлено: {report.get('updated', 0)}, пропущено: {report.get('skipped', 0)}")
+    lines.append(
+        f"Создано: {report.get('imported', 0)}, обновлено: {report.get('updated', 0)}, пропущено: {report.get('skipped', 0)}"
+    )
     lines.append(f"Дублей: {report.get('duplicates', 0)}")
     lines.append(f"Всего ошибок: {len(report.get('errors', []))}")
     lines.append("")
@@ -1123,7 +1141,7 @@ def delete_photo(order_id, photo_id):
 def export_excel():
     from sqlalchemy import func
 
-    from app.models import Complaint, Order, Photo, User
+    from app.models import Complaint, Order, Photo
 
     wb = Workbook()
     ws = wb.active
@@ -1276,3 +1294,126 @@ def audit():
         filter_options=filter_options,
         stats=stats,
     )
+
+
+# ==================== Операционный анализ ====================
+
+
+@admin_bp.route("/operational_analysis")
+@admin_required
+def operational_analysis():
+    """Список сессий операционного анализа + форма загрузки."""
+    from app.services.operational_analysis_service import OperationalAnalysisService
+
+    sessions = OperationalAnalysisService.get_recent_sessions(limit=20)
+    return render_template("admin_operational_analysis.html", sessions=sessions)
+
+
+@admin_bp.route("/operational_analysis/upload", methods=["POST"])
+@admin_required
+def operational_analysis_upload():
+    """Загрузка и обработка Excel-файла с тремя листами."""
+    from app.services.operational_analysis_service import OperationalAnalysisService
+
+    file = request.files.get("excel_file")
+    if not file or not file.filename:
+        flash("Файл не выбран", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+    if file.filename.endswith(".xls"):
+        flash("Формат .xls не поддерживается — сохраните файл как .xlsx", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+    if not file.filename.endswith(".xlsx"):
+        flash("Неверный формат файла. Нужен .xlsx", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+    wait_threshold = request.form.get("wait_threshold", type=int)
+    if wait_threshold is None or wait_threshold < 0:
+        wait_threshold = OperationalAnalysisService.DEFAULT_WAIT_THRESHOLD
+
+    try:
+        session_obj = OperationalAnalysisService.analyze_file(file, wait_threshold=wait_threshold)
+        flash(
+            f"Анализ завершён. Заказов: {session_obj.total_orders}, "
+            f"жжлоб: {session_obj.total_complaints}, "
+            f"собрано: {session_obj.total_assembly_orders}. "
+            f"Ошибок: {session_obj.error_count}, предупреждений: {session_obj.warning_count}.",
+            "success",
+        )
+        return redirect(url_for("admin.operational_analysis_results", session_id=session_obj.id))
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Ошибка при обработке файла: {str(e)}", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+
+@admin_bp.route("/operational_analysis/<int:session_id>")
+@admin_required
+def operational_analysis_results(session_id):
+    """Просмотр результатов операционного анализа."""
+    from app.services.operational_analysis_service import OperationalAnalysisService
+
+    picker = request.args.get("picker", "", type=str)
+    date_from = request.args.get("date_from", "", type=str)
+    date_to = request.args.get("date_to", "", type=str)
+    time_of_day = request.args.get("time_of_day", "", type=str)
+    has_complaint = request.args.get("has_complaint", "", type=str)
+
+    if any([picker, date_from, date_to, time_of_day, has_complaint]):
+        results = OperationalAnalysisService.filter_results(
+            session_id,
+            picker=picker,
+            date_from=date_from,
+            date_to=date_to,
+            time_of_day=time_of_day,
+            has_complaint=has_complaint,
+        )
+    else:
+        results = OperationalAnalysisService.get_session_results(session_id)
+
+    if not results:
+        flash("Сессия анализа не найдена", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+    return render_template(
+        "admin_operational_analysis_results.html",
+        results=results,
+        picker=picker,
+        date_from=date_from,
+        date_to=date_to,
+        time_of_day=time_of_day,
+        has_complaint=has_complaint,
+    )
+
+
+@admin_bp.route("/operational_analysis/<int:session_id>/export")
+@admin_required
+def operational_analysis_export(session_id):
+    """Экспорт результатов операционного анализа в Excel."""
+    from app.services.operational_analysis_service import OperationalAnalysisService
+
+    excel_data = OperationalAnalysisService.export_excel(session_id)
+    if not excel_data:
+        flash("Данные для экспорта не найдены", "error")
+        return redirect(url_for("admin.operational_analysis"))
+
+    return send_file(
+        io.BytesIO(excel_data),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f'operational_analysis_{session_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+    )
+
+
+@admin_bp.route("/operational_analysis/delete/<int:session_id>", methods=["POST"])
+@admin_required
+def operational_analysis_delete(session_id):
+    """Удаление сессии операционного анализа."""
+    from app.services.operational_analysis_service import OperationalAnalysisService
+
+    if OperationalAnalysisService.delete_session(session_id):
+        flash("Сессия анализа удалена", "success")
+    else:
+        flash("Сессия не найдена", "error")
+    return redirect(url_for("admin.operational_analysis"))
