@@ -39,7 +39,9 @@ class TestImportService:
         order = Order.query.filter_by(order_number="ORDER-001").first()
         assert order is not None
         assert order.user_id == regular_user.id
-        assert order.description == "Номер заказа: ORDER-001; Описание: Description 1"
+        # Новый формат: только адрес, подтема, дата, время завершения
+        # В этом тесте этих полей нет, поэтому описание пустое
+        assert order.description == ""
 
     def test_import_orders_skip_unknown_user(self, db_session, regular_user):
         file = self.create_excel_file(

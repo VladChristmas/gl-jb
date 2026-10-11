@@ -53,6 +53,51 @@ class ImportService:
         return found
 
     @staticmethod
+    def _build_description(dash_fields: dict, order_data: dict | None = None) -> str:
+        """
+        Формирует описание заказа в едином формате:
+        Адрес: ...
+        Подтема: ...
+        Дата: ...
+        Время завершения: ...
+        """
+        parts = []
+
+        # Адрес
+        addr = dash_fields.get("address")
+        if addr:
+            parts.append(f"Адрес: {addr}")
+
+        # Подтема — ищем в order_data по разным вариантам названий
+        topic = None
+        if order_data:
+            for key in ("Подтема", "подтема", "Тема", "тема", "Причина", "причина", "complaint_text", "subtopic"):
+                if key in order_data and order_data[key]:
+                    topic = order_data[key]
+                    break
+        if topic:
+            parts.append(f"Подтема: {topic}")
+
+        # Дата — используем delivered_at или created_at
+        date_val = dash_fields.get("delivered_at")
+        if date_val:
+            parts.append(f"Дата: {date_val}")
+
+        # Время завершения — confirmed_at или delivery_started или delivered_at
+        time_val = None
+        if order_data:
+            for key in ("confirmed_at", "confirmed", "delivery_started", "delivery_finished", "completed_at", "finished_at"):
+                if key in order_data and order_data[key]:
+                    time_val = order_data[key]
+                    break
+        if not time_val and date_val:
+            time_val = date_val
+        if time_val:
+            parts.append(f"Время завершения: {time_val}")
+
+        return "\n".join(parts) if parts else ""
+
+    @staticmethod
     def _number_conflict(user_id: int, order_number: str, exclude_id: int | None = None) -> bool:
         """Занят ли (user_id, order_number) другим заказом.
 
@@ -113,13 +158,8 @@ class ImportService:
                     f'Строка {row_idx}: заказ "{order_number}" уже существует для этого пользователя'
                 )
                 continue
-            description_parts = []
-            for key, value in order_data.items():
-                if value is not None:
-                    description_parts.append(f"{key}: {value}")
-            description = "; ".join(description_parts)
-
             dash_fields = ImportService._extract_dashboard_fields(headers, row)
+            description = ImportService._build_description(dash_fields, order_data)
 
             order = Order(
                 user_id=user_id,
@@ -231,14 +271,14 @@ class ImportService:
 
                 order = Order.query.filter_by(external_id=ext_id).first()
 
-                description_parts = []
+                dash_fields = ImportService._extract_dashboard_fields(headers, row)
+                # Собираем order_data для _build_description
+                order_data = {}
                 for model_field, col_idx in field_indices.items():
                     value = row[col_idx]
                     if value is not None:
-                        description_parts.append(f"{model_field}: {value}")
-                description = "; ".join(description_parts)
-
-                dash_fields = ImportService._extract_dashboard_fields(headers, row)
+                        order_data[model_field] = value
+                description = ImportService._build_description(dash_fields, order_data)
 
                 if order:
                     # Конфликт уникальности (user_id, order_number): чужой заказ
