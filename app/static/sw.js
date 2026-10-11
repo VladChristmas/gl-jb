@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gl_jb-v3';
+const CACHE_NAME = 'gl_jb-v5';
 const STATIC_ASSETS = [
   '/static/manifest.json',
   '/static/style.css',
@@ -32,45 +32,31 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - network first for API, cache first for static
+// Fetch event
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
+
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
-  
+
   // Skip cross-origin requests
   if (url.origin !== location.origin) {
     return;
   }
-  
-  // API routes - network first
-  if (url.pathname.startsWith('/orders/') && url.pathname.includes('upload')) {
-    return; // Let browser handle uploads
-  }
-  
-  // Static assets - stale while revalidate (instant paint, background update)
+
+  // Только статические ассеты. Приватные HTML-страницы, API, /uploads/*
+  // и изображения в Cache Storage НЕ кладутся: иначе после logout (и в
+  // другой вкладке) браузер продолжает отдавать устаревшую
+  // авторизованную страницу/фото из кэша.
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
-  
-  // HTML pages - network first with cache fallback
-  if (event.request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(networkFirst(event.request));
-    return;
-  }
-  
-  // Images - cache first
-  if (event.request.headers.get('accept')?.includes('image/')) {
-    event.respondWith(cacheFirst(event.request));
-    return;
-  }
-  
-  // Default - network first
-  event.respondWith(networkFirst(event.request));
+
+  // Всё остальное — только сеть, без записи в кэш
+  event.respondWith(networkOnly(event.request));
 });
 
 async function staleWhileRevalidate(request) {
@@ -94,50 +80,18 @@ async function staleWhileRevalidate(request) {
   return fresh || new Response('', { status: 504 });
 }
 
-async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  
-  if (cached) {
-    return cached;
-  }
-  
+// Только сеть: ответ не сохраняется, при отсутствии сети — заглушка для HTML.
+async function networkOnly(request) {
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch (error) {
-    // Return offline page or error
-    return new Response('Offline', { status: 503 });
-  }
-}
-
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    const cached = await cache.match(request);
-    if (cached) {
-      return cached;
-    }
-    
-    // Offline fallback for HTML requests: saved page → home → plain message
     if (request.headers.get('accept')?.includes('text/html')) {
-      const saved = await caches.match(request);
-      if (saved) return saved;
-      const home = await caches.match('/');
-      if (home) return home;
-      return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      return new Response('Нет соединения с сервером. Повторите попытку позже.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
-    
+
     return new Response('Offline', { status: 503 });
   }
 }

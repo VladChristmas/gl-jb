@@ -46,6 +46,9 @@ flask db upgrade
 # Запуск
 python app.py
 # Откройте http://localhost:5000
+
+# Production (точка входа — wsgi.py)
+gunicorn -w 2 -b 0.0.0.0:5000 wsgi:app
 ```
 
 ## Учётные данные
@@ -62,19 +65,20 @@ python app.py
 
 ```
 project/
-├── app.py              # Основное приложение
-├── models.py           # SQLAlchemy модели
+├── app.py              # Точка входа для локального запуска (thin)
+├── wsgi.py             # Production entrypoint (gunicorn wsgi:app)
 ├── config.py           # Конфигурация из .env
 ├── requirements.txt    # Зависимости
 ├── .env.example        # Пример конфигурации
 ├── .env                # Ваша конфигурация (не в git)
-├── database.db         # SQLite БД
+├── database.db         # SQLite БД (если DATABASE_URL не задан)
 ├── migrations/         # Alembic миграции
 ├── uploads/            # Загруженные фото
 ├── logs/               # Логи приложения
-├── static/
-│   └── style.css       # Стили
-├── templates/          # Jinja2 шаблоны
+├── app/                # Пакет приложения (blueprints, модели, сервисы)
+│   ├── templates/      # Jinja2 шаблоны
+│   └── static/style.css  # Стили
+├── tests/              # Pytest
 ├── Dockerfile          # Docker образ
 ├── docker-compose.yml  # Docker Compose
 ├── nginx.conf          # Nginx конфиг

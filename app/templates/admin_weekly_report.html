@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}Еженедельный отчёт руководителя{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад к дашборду</a>
+
+<div class="page-header">
+    <h1>Еженедельный отчёт руководителя</h1>
+    <div class="user-info">
+        <a href="{{ url_for('admin.weekly_report', week=week_links.prev) }}" class="btn btn-sm btn-secondary" title="Предыдущая неделя">‹</a>
+        <strong style="min-width: 180px; text-align: center;">{{ report.label }}</strong>
+        <a href="{{ url_for('admin.weekly_report', week=week_links.next) }}" class="btn btn-sm btn-secondary" title="Следующая неделя">›</a>
+        <a href="{{ url_for('admin.weekly_report', week=week_links.now) }}" class="btn btn-sm btn-secondary" title="Текущая неделя">Сейчас</a>
+        <a href="{{ url_for('admin.export_weekly_report_excel', week=week_param) }}" class="btn btn-primary">Экспорт Excel</a>
+    </div>
+</div>
+
+{% if report.is_current %}
+<div class="card" style="background: linear-gradient(135deg, rgba(255, 159, 10, 0.08), rgba(255, 159, 10, 0.02)); border-color: rgba(255, 159, 10, 0.25); margin-bottom: 16px;">
+    <p class="help-text" style="margin: 0;">
+        ⚠️ Текущая неделя ещё не завершена — показатели предварительные.
+        {% if not report.is_prev_complete %}Предыдущая неделя также неполная.{% else %}Сравнение с полной прошлой неделей может вводить в заблуждение.{% endif %}
+    </p>
+</div>
+{% elif not report.is_prev_complete %}
+<div class="card" style="background: linear-gradient(135deg, rgba(52, 152, 219, 0.08), rgba(52, 152, 219, 0.02)); border-color: rgba(52, 152, 219, 0.25); margin-bottom: 16px;">
+    <p class="help-text" style="margin: 0;">
+        ℹ️ Предыдущая неделя неполная (данные накапливаются) — динамика может быть неточной.
+    </p>
+</div>
+{% endif %}
+
+<!-- KPI Cards -->
+<div class="kpi-grid" role="list" aria-label="Ключевые показатели недели">
+    {% for card in report.kpi_cards %}
+    <a href="{{ card.link }}" class="kpi-card {% if card.delta is not none and card.delta < 0 and card.label not in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is not none and card.delta > 0 and card.label in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is not none and card.delta > 0 %}kpi-success{% elif card.delta is not none and card.delta < 0 %}kpi-success{% else %}{% endif %}" role="listitem">
+        <span class="kpi-value">
+            {% if card.value is not none %}
+                {% if card.pct is not none %}
+                    {{ card.value }} ({{ '%.1f'|format(card.pct) }}%)
+                {% else %}
+                    {{ card.value }}
+                {% endif %}
+            {% else %}
+                —
+            {% endif %}
+        </span>
+        <span class="kpi-label">{{ card.label }}</span>
+        {% if card.delta is not none %}
+        <span class="kpi-hint">
+            {% if card.delta > 0 %}+{% endif %}{{ card.delta }}
+            {% if card.delta_pct is not none %} ({{ '%+.1f'|format(card.delta_pct) }}%){% endif %}
+        </span>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Daily Trends Sparklines -->
+<div class="analytics-grid">
+    <div class="card chart-card">
+        <h3>Заказы по дням недели</h3>
+        {% if report.daily_orders %}
+        <div class="sparkline-container" role="img" aria-label="График заказов по дням">
+            <svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none">
+                {% set max_count = report.daily_orders | map(attribute='count') | max %}
+                {% set points_str = '' %}
+                {% for item in report.daily_orders %}
+                    {% set x = loop.index0 * (100 / (report.daily_orders | length - 1)) if report.daily_orders | length > 1 else 50 %}
+                    {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
+                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                {% endfor %}
+                {% if points_str %}
+                <polyline fill="none" stroke="var(--primary)" stroke-width="2" points="{{ points_str }}" />
+                {% endif %}
+            </svg>
+        </div>
+        <div class="sparkline-labels">
+            {% for item in report.daily_orders %}
+            <span>{{ item.day[-5:] if item.day else "—" }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 24px; text-align: center;">
+            <div class="empty-state-text">Нет данных за период</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card chart-card">
+        <h3>Жалобы по дням недели</h3>
+        {% if report.daily_complaints %}
+        <div class="sparkline-container" role="img" aria-label="График жалоб по дням">
+            <svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none">
+                {% set max_count = report.daily_complaints | map(attribute='count') | max %}
+                {% set points_str = '' %}
+                {% for item in report.daily_complaints %}
+                    {% set x = loop.index0 * (100 / (report.daily_complaints | length - 1)) if report.daily_complaints | length > 1 else 50 %}
+                    {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
+                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                {% endfor %}
+                {% if points_str %}
+                <polyline fill="none" stroke="var(--danger)" stroke-width="2" points="{{ points_str }}" />
+                {% endif %}
+            </svg>
+        </div>
+        <div class="sparkline-labels">
+            {% for item in report.daily_complaints %}
+            <span>{{ item.day[-5:] if item.day else "—" }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 24px; text-align: center;">
+            <div class="empty-state-text">Нет жалоб за период</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Couriers Table -->
+<div class="card">
+    <div class="page-header" style="margin-bottom: 8px;">
+        <h2 style="margin: 0;">Рейтинг курьеров за неделю</h2>
+        <a href="{{ url_for('admin.couriers', week=week_param) }}" class="btn btn-sm btn-secondary">Подробный рейтинг →</a>
+    </div>
+    <p class="help-text" style="margin-top: 0;">
+        Балл = 100 − (% заказов с жалобами × K), ограничен 1–100. Минимум заказов для балла: {{ report.rating.min_orders }}.
+        {% if report.rating.is_current %}Текущая неделя — предварительный рейтинг.{% endif %}
+    </p>
+
+    {% if report.courier_rows %}
+    <!-- Desktop Table -->
+    <div class="table-wrap" style="display: none;" id="couriers-desktop-table">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Место</th>
+                <th>Курьер</th>
+                <th>Заказов</th>
+                <th>С жалобами</th>
+                <th>Жалоб (шт.)</th>
+                <th>% с жалобами</th>
+                <th>Балл</th>
+                <th>К прошлой неделе</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in report.courier_rows %}
+            <tr>
+                <td><strong>{{ c.place if c.place else '—' }}</strong></td>
+                <td>
+                    <a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}"><strong>{{ c.fio }}</strong></a>
+                    {% if c.status == 'preliminary' %}
+                    <br><small style="color: var(--warning);">Предварительный рейтинг</small>
+                    {% elif c.status == 'insufficient' %}
+                    <br><small style="color: var(--text-secondary);">Недостаточно данных</small>
+                    {% endif %}
+                </td>
+                <td>{{ c.eligible_orders }}</td>
+                <td>{{ c.orders_with_complaints }}</td>
+                <td>{{ c.complaints_count }}</td>
+                <td>{{ '%.1f'|format(c.complaint_rate) if c.complaint_rate is not none else '—' }}</td>
+                <td><strong>{{ '%.1f'|format(c.quality_score) if c.quality_score is not none else '—' }}</strong></td>
+                <td>
+                    <span class="direction-badge direction-{{ c.direction|lower|replace(' ', '-')|replace('недостаточно-данных-для-сравнения', 'unknown') }}">
+                        {{ c.direction }}
+                    </span>
+                    {% if c.deltas %}
+                    <br><small style="color: var(--text-secondary);">
+                        балл {{ '%+.1f'|format(c.deltas.score) }},
+                        заказы {{ '%+d'|format(c.deltas.orders) }},
+                        жалобы {{ '%+d'|format(c.deltas.complaints) }}
+                        {% if c.deltas.rate is not none %}, % {{ '%+.1f'|format(c.deltas.rate) }}{% endif %}
+                    </small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div id="couriers-mobile-cards" style="display: flex; flex-direction: column; gap: 12px;">
+        {% for c in report.courier_rows %}
+        <a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}" class="courier-card" style="text-decoration: none; color: inherit;">
+            <div class="courier-card-header">
+                <div>
+                    <strong style="font-size: 17px;">{{ c.fio }}</strong>
+                    {% if c.status == 'preliminary' %}
+                    <span class="badge badge-warning" style="margin-left: 8px; font-size: 10px;">Предварительный</span>
+                    {% elif c.status == 'insufficient' %}
+                    <span class="badge" style="margin-left: 8px; font-size: 10px; background: var(--surface-3); color: var(--text-secondary);">Недостаточно данных</span>
+                    {% endif %}
+                </div>
+                <div class="courier-score" style="text-align: right;">
+                    <div style="font-size: 28px; font-weight: 700; color: var(--text); line-height: 1;">{{ '%.1f'|format(c.quality_score) if c.quality_score is not none else '—' }}</div>
+                    <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">{{ 'Место ' ~ c.place if c.place else 'Без места' }}</div>
+                </div>
+            </div>
+            <div class="courier-card-meta" style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light);">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Заказов</span>
+                    <span style="font-weight: 600;">{{ c.eligible_orders }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">С жалобами</span>
+                    <span style="font-weight: 600;">{{ c.orders_with_complaints }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Жалоб</span>
+                    <span style="font-weight: 600;">{{ c.complaints_count }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">% с жалобами</span>
+                    <span style="font-weight: 600;">{{ '%.1f'|format(c.complaint_rate) if c.complaint_rate is not none else '—' }}</span>
+                </div>
+            </div>
+            {% if c.deltas %}
+            <div class="courier-card-delta" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                <span class="direction-badge direction-{{ c.direction|lower|replace(' ', '-')|replace('недостаточно-данных-для-сравнения', 'unknown') }}" style="font-size: 11px; padding: 4px 8px;">{{ c.direction }}</span>
+                <small style="color: var(--text-secondary);">
+                    балл {{ '%+.1f'|format(c.deltas.score) }},
+                    заказы {{ '%+d'|format(c.deltas.orders) }},
+                    жалобы {{ '%+d'|format(c.deltas.complaints) }}
+                    {% if c.deltas.rate is not none %}, % {{ '%+.1f'|format(c.deltas.rate) }}{% endif %}
+                </small>
+            </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет данных о курьерах за выбранный период.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Problematic Orders -->
+<div class="card">
+    <h2>Проблемные заказы (требуют фото)</h2>
+    <p class="help-text">Заказы с жалобами, по которым нужны фото-подтверждения (подтема из списка «нужно фото»), но фото ещё не загружены.</p>
+    {% if report.problematic_orders %}
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>ID заказа</th>
+                <th>Номер заказа</th>
+                <th>Курьер</th>
+                <th>Адрес</th>
+                <th>Время доставки</th>
+                <th>Текст жалобы</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order, user in report.problematic_orders %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ order.id }}</td>
+                <td>{{ order.order_number or '#' ~ order.id }}</td>
+                <td><strong>{{ order.courier_fio or user.fio }}</strong></td>
+                <td>{{ order.address or '—' }}</td>
+                <td>{{ order.delivered_at or '—' }}</td>
+                <td>
+                    <small style="color: var(--text-secondary);">
+                        {{ order.complaint_text[:80] }}{% if order.complaint_text|length > 80 %}…{% endif %}
+                    </small>
+                </td>
+                <td>
+                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">Открыть →</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-text">Нет заказов, ожидающих фото-подтверждения по жалобам.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Imports -->
+{% if report.recent_imports %}
+<div class="card">
+    <h2>Результаты импорта за неделю</h2>
+    <div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Время</th>
+                <th>Действие</th>
+                <th>Объект</th>
+                <th>Детали</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in report.recent_imports %}
+            <tr>
+                <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '—' }}</td>
+                <td>{{ log.action_type }}</td>
+                <td>{{ log.object_type }}</td>
+                <td>{{ log.details or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <p class="help-text" style="margin-top: 8px;">
+        <a href="{{ url_for('admin.audit', action_type='import', date_from=report.start.strftime('%Y-%m-%d'), date_to=report.end.strftime('%Y-%m-%d')) }}">Полная история импорта →</a>
+    </p>
+{% else %}
+<div class="card">
+    <h2>Результаты импорта за неделю</h2>
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-text">Нет записей об импорте за выбранный период.</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Source Data Links -->
+<div class="card">
+    <h2>Ссылки на исходные данные</h2>
+    <nav class="admin-nav" style="margin-top: 8px;">
+        <a href="{{ url_for('admin.orders', period='week') }}" class="nav-item">
+            <span>📋</span> Все заказы за неделю
+        </a>
+        <a href="{{ url_for('admin.complaints', period='week') }}" class="nav-item">
+            <span>⚠️</span> Все жалобы за неделю
+        </a>
+        <a href="{{ url_for('admin.couriers', week=week_param) }}" class="nav-item">
+            <span>🚚</span> Рейтинг курьеров (подробный)
+        </a>
+        <a href="{{ url_for('admin.analytics', period='week') }}" class="nav-item">
+            <span>📊</span> Аналитика жалоб
+        </a>
+        <a href="{{ url_for('admin.audit', date_from=report.start.strftime('%Y-%m-%d'), date_to=report.end.strftime('%Y-%m-%d')) }}" class="nav-item">
+            <span>📜</span> История изменений за неделю
+        </a>
+    </nav>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    // Toggle table/cards view based on screen width
+    function updateView() {
+        var isMobile = window.matchMedia('(max-width: 768px)').matches;
+        var desktopTable = document.getElementById('couriers-desktop-table');
+        var mobileCards = document.getElementById('couriers-mobile-cards');
+
+        if (desktopTable) desktopTable.style.display = isMobile ? 'none' : 'block';
+        if (mobileCards) mobileCards.style.display = isMobile ? 'flex' : 'none';
+    }
+
+    if (window.matchMedia) {
+        var media = window.matchMedia('(max-width: 768px)');
+        updateView();
+        if (media.addEventListener) media.addEventListener('change', updateView);
+        else if (media.addListener) media.addListener(updateView);
+    } else {
+        updateView();
+    }
+
+    if (window.MutationObserver) {
+        new MutationObserver(function () { updateView(); }).observe(document.body, { childList: true, subtree: true });
+    }
+})();
+</script>
+{% endblock %}

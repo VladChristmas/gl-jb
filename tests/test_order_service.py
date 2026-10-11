@@ -24,7 +24,7 @@ class TestOrderService:
         assert pagination.items[0].order_number == "TEST-001"
 
     def test_get_all_orders(self, db_session, regular_user, sample_order):
-        # По умолчанию видны только заказы с фото или ждущие фото-подтемы
+        # §4: по умолчанию список показывает ВСЕ заказы — как и KPI дашборда
         db_session.add(
             Order(
                 user_id=regular_user.id,
@@ -36,10 +36,12 @@ class TestOrderService:
         pagination, orders = OrderService.get_all_orders(page=1, per_page=100)
         numbers = [item["order"].order_number for item in orders]
         assert "VISIBLE-1" in numbers
-        assert "TEST-001" not in numbers
+        assert "TEST-001" in numbers
+        assert pagination.total == len(numbers)
 
     def test_get_all_orders_hides_irrelevant(self, db_session, regular_user, sample_order):
-        """Заказ без фото и без фото-подтемы не показывается ни в одном фильтре."""
+        """Заказ без фото и без фото-подтемы скрывается только в явных фильтрах;
+        правило «с фото и ждущие фото» сохранено отдельным значением photo_relevant."""
         db_session.add(
             Order(
                 user_id=regular_user.id,
@@ -48,12 +50,15 @@ class TestOrderService:
             )
         )
         db_session.commit()
-        for photo_filter in ("", "with_photos", "without_photos"):
+        for photo_filter in ("photo_relevant", "with_photos", "without_photos"):
             pagination, orders = OrderService.get_all_orders(
                 page=1, per_page=100, photo_filter=photo_filter
             )
             numbers = [item["order"].order_number for item in orders]
             assert "IRRELEVANT-1" not in numbers
+        # правило по умолчанию (пустой фильтр) больше не прячет заказы
+        pagination, orders = OrderService.get_all_orders(page=1, per_page=100)
+        assert "IRRELEVANT-1" in [item["order"].order_number for item in orders]
 
     def test_get_all_orders_shows_with_photo(self, db_session, regular_user, sample_order):
         """Заказ с фото виден по умолчанию и в фильтре «с фото»."""

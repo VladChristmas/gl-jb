@@ -31,6 +31,53 @@ class TestUserRoutes:
         assert resp.status_code == 200
         assert b"TEST-001" in resp.data
 
+    def test_user_orders_shows_address_and_photo_hint(self, auth_client, db_session, regular_user):
+        """Этап 7: адрес доставки и подсказка «нужно фото по жалобе»."""
+        order = Order(
+            user_id=regular_user.id,
+            order_number="ADDR-1",
+            address="ул. Пушкина, д. 10",
+            complaint_text="Товар побит/вскрыт",
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        html = auth_client.get("/orders").get_data(as_text=True)
+        assert "ул. Пушкина, д. 10" in html
+        assert "обязательно фото-подтверждение" in html
+        # Фильтр-чип «Жрут фото» со счётчиком (§4)
+        assert "photo=pending" in html
+        assert "Ждут фото" in html
+
+    def test_user_orders_pending_filter(self, auth_client, db_session, regular_user):
+        """Фильтр photo=pending: только заказы с фото-подтемой без фото."""
+        waiting = Order(
+            user_id=regular_user.id,
+            order_number="PEND-1",
+            complaint_text="Принесли чужой заказ",
+        )
+        done = Order(
+            user_id=regular_user.id,
+            order_number="DONE-1",
+            complaint_text="Не донесли часть товаров из заказа",
+        )
+        from app.models import Photo
+
+        db_session.add(waiting)
+        db_session.add(done)
+        db_session.flush()
+        db_session.add(Photo(order_id=done.id, filename="x.jpg", original_filename="x.jpg"))
+        db_session.commit()
+
+        html = auth_client.get("/orders?photo=pending").get_data(as_text=True)
+        assert "PEND-1" in html
+        assert "DONE-1" not in html
+
+        # Неизвестное значение фильтра игнорируется (без 500)
+        resp = auth_client.get("/orders?photo=хак")
+        assert resp.status_code == 200
+        assert "PEND-1" in resp.get_data(as_text=True)
+
     def test_upload_photo_requires_auth(self, client, sample_order):
         resp = client.post(f"/orders/{sample_order.id}/upload", data={})
         assert resp.status_code == 302  # Redirect to login
@@ -68,7 +115,11 @@ class TestAdminRoutes:
         db_session.commit()
         resp = admin_client.get("/admin/orders")
         assert resp.status_code == 200
-        # Заказ с фото-подтемой показан, без фото-подтемы — скрыт
+        # §4: по умолчанию список показывает все заказы, включая KPI-выборку
+        assert b"VISIBLE-R" in resp.data
+        assert b"IRRELEVANT-R" in resp.data
+        # старое правило «только с фото/ожидающие фото» — явным фильтром
+        resp = admin_client.get("/admin/orders?photo_filter=photo_relevant")
         assert b"VISIBLE-R" in resp.data
         assert b"IRRELEVANT-R" not in resp.data
 

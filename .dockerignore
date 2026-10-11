@@ -1,0 +1,43 @@
+# Контекст сборки образа для Render (runtime: docker).
+# Главная цель — не попадать в образ: локальные секреты, базы, загрузки, кэши.
+
+# VCS и IDE
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+
+# Секреты (на Render их нет, но локальная сборка не должна их запекать)
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production.example
+
+# Базы данных и временные файлы
+*.db
+*.sqlite
+*.sqlite3
+e2e_local.db
+smoke.db
+.coverage
+htmlcov
+
+# Временные данные приложения (в контейнере создаются заново: Dockerfile mkdir -p)
+uploads/
+logs/
+instance/
+
+# Кэши тестировщиков
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Не нужно в runtime-образе
+ssl/
+scripts/
+setup_cloudflare_tunnel.bat
+AGENTS.md

@@ -6,7 +6,7 @@ class User(db.Model):  # type: ignore[name-defined]
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     fio = db.Column(db.String(255), unique=True, nullable=False)
-    token = db.Column(db.String(10), unique=True, nullable=False)
+    token = db.Column(db.String(128), unique=True, nullable=False)
     role = db.Column(
         db.String(20), nullable=False, default=ROLE_COURIER, server_default=ROLE_COURIER
     )

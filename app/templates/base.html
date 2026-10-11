@@ -21,60 +21,10 @@
         document.documentElement.setAttribute('data-theme', t);
     })();
     </script>
-    <script>
-    // Utility functions live in head so inline scripts in child templates
-    // (e.g. enableLiveSearch) can call them safely.
-    function showToast(message, actionLabel, actionFn, duration) {
-        duration = duration || 5000;
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.innerHTML = '<span>' + message + '</span>';
-        if (actionLabel && actionFn) {
-            const btn = document.createElement('button');
-            btn.className = 'toast-action';
-            btn.textContent = actionLabel;
-            btn.onclick = function() { actionFn(); dismiss(); };
-            toast.appendChild(btn);
-            container.appendChild(toast);
-        } else {
-            container.appendChild(toast);
-        }
-        let dismissed = false;
-        function dismiss() {
-            if (dismissed) return;
-            dismissed = true;
-            toast.classList.add('toast-out');
-            setTimeout(() => { toast.remove(); }, 300);
-        }
-        setTimeout(dismiss, duration);
-        return dismiss;
-    }
-
-    // Confirm with undo toast — intercepts form submit
-    function confirmDelete(form, message, event) {
-        if (event && event.preventDefault) event.preventDefault();
-        showToast(message, 'Удалить', function() { form.submit(); }, 5000);
-        return false;
-    }
-
-    // Debounced live search — auto-submit form after typing pause
-    function enableLiveSearch(inputId, formSelector) {
-        var input = document.getElementById(inputId);
-        if (!input) return;
-        var timer;
-        input.addEventListener('input', function() {
-            clearTimeout(timer);
-            timer = setTimeout(function() {
-                var form = input.closest(formSelector || 'form');
-                if (form) form.submit();
-            }, 400);
-        });
-    }
-    </script>
+    <script src="{{ url_for('static', filename='utils.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body{% if session.is_admin or session.user_id %} class="has-bottom-nav"{% endif %}>
     <header class="topbar">
         <div class="topbar-inner">
             <a class="brand" href="{{ url_for('main.index') }}">
@@ -105,46 +55,95 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script>
-    // Theme switcher (light / dark / system)
-    (function () {
-        var meta = document.querySelector('meta[name="theme-color"]');
-        function isDark() {
-            var t = document.documentElement.getAttribute('data-theme');
-            if (t === 'dark') return true;
-            if (t === 'light') return false;
-            return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        }
-        function syncMeta() {
-            if (meta) meta.setAttribute('content', isDark() ? '#1d1d1f' : '#f5f5f7');
-        }
-        document.querySelectorAll('.theme-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var v = btn.getAttribute('data-theme-value');
-                try { localStorage.setItem('theme', v); } catch (e) {}
-                document.documentElement.setAttribute('data-theme', v);
-                syncMeta();
-            });
-        });
-        syncMeta();
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').addEventListener) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncMeta);
-        }
-    })();
+    {% if session.is_admin or session.user_id %}
+    {# Нижняя навигация: только существующие маршруты, различия по ролям.
+       Активный пункт определяется по request.endpoint (+ фильтр жалоб).
+       «Ещё» — <details>, работает без JS; раскрывается вверх над панелью. #}
+    {% set nav_endpoint = request.endpoint or '' %}
+    {% set complaints_active = nav_endpoint == 'admin.complaints' %}
+    <nav class="bottom-nav" aria-label="Основная навигация">
+        {% if session.is_admin %}
+        <a href="{{ url_for('admin.dashboard') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.dashboard' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+            <span>Главная</span>
+        </a>
+        <a href="{{ url_for('admin.orders') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.orders' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+            <span>Заказы</span>
+        </a>
+        <a href="{{ url_for('admin.complaints') }}" class="bottom-nav-item{% if complaints_active %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.4" fill="currentColor"/></svg>
+            <span>Жалобы</span>
+        </a>
+        <a href="{{ url_for('admin.photo_control') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.photo_control' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/></svg>
+            <span>Фото</span>
+        </a>
+        <a href="{{ url_for('admin.couriers') }}" class="bottom-nav-item{% if nav_endpoint in ('admin.couriers', 'admin.courier_detail') %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 3 14.6 8.6 21 9.3 16.5 13.4 17.8 20 12 16.8 6.2 20 7.5 13.4 3 9.3 9.4 8.6"/></svg>
+            <span>Рейтинг</span>
+        </a>
+        <a href="{{ url_for('admin.analytics') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.analytics' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20V16"/></svg>
+            <span>Аналитика</span>
+        </a>
+        <details class="bottom-nav-more">
+            <summary class="bottom-nav-item">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                <span>Ещё</span>
+            </summary>
+            <div class="bottom-nav-menu">
+                <a href="{{ url_for('admin.users') }}">Пользователи</a>
+                <a href="{{ url_for('admin.pickers') }}">Сборщики</a>
+                <a href="{{ url_for('user.chat') }}">Чат</a>
+                <a href="{{ url_for('auth.admin_logout') }}">Выйти</a>
+            </div>
+        </details>
+        {% elif session.user_role == 'picker' %}
+        <a href="{{ url_for('user.dashboard') }}" class="bottom-nav-item{% if nav_endpoint == 'user.dashboard' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+            <span>Главная</span>
+        </a>
+        <a href="{{ url_for('user.chat') }}" class="bottom-nav-item{% if nav_endpoint == 'user.chat' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+            <span>Чат</span>
+        </a>
+        <details class="bottom-nav-more">
+            <summary class="bottom-nav-item">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                <span>Ещё</span>
+            </summary>
+            <div class="bottom-nav-menu">
+                <a href="{{ url_for('auth.logout') }}">Выйти</a>
+            </div>
+        </details>
+        {% else %}
+        <a href="{{ url_for('user.dashboard') }}" class="bottom-nav-item{% if nav_endpoint == 'user.dashboard' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+            <span>Главная</span>
+        </a>
+        <a href="{{ url_for('user.orders') }}" class="bottom-nav-item{% if nav_endpoint in ('user.orders', 'user.order_photos', 'user.upload_photo') %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+            <span>Заказы</span>
+        </a>
+        <a href="{{ url_for('user.chat') }}" class="bottom-nav-item{% if nav_endpoint == 'user.chat' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+            <span>Чат</span>
+        </a>
+        <details class="bottom-nav-more">
+            <summary class="bottom-nav-item">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                <span>Ещё</span>
+            </summary>
+            <div class="bottom-nav-menu">
+                <a href="{{ url_for('auth.logout') }}">Выйти</a>
+            </div>
+        </details>
+        {% endif %}
+    </nav>
+    {% endif %}
 
-    // Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('{{ url_for('static', filename='sw.js') }}')
-                .then(registration => {
-                    console.log('[SW] Registered:', registration.scope);
-                })
-                .catch(error => {
-                    console.log('[SW] Registration failed:', error);
-                });
-        });
-    }
-    </script>
+    <script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

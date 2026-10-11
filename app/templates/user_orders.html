@@ -13,19 +13,30 @@
     </div>
 </header>
 
-{# CSRF для JS-загрузки фото (вне GET-формы, чтобы не попадал в query) #}
+{# Страница-уровневый CSRF (вне GET-формы, чтобы не попадал в query) #}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="upload-csrf">
 
 <form method="get" class="form-inline" style="margin-bottom: 1rem;">
+    <input type="hidden" name="photo" value="{{ photo_filter }}">
     <div class="form-group" style="flex: 1;">
         <label for="search">Поиск</label>
         <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или описание" autocomplete="off">
     </div>
     <button type="submit" class="btn btn-secondary">Найти</button>
-    {% if search %}
+    {% if search or photo_filter %}
     <a href="{{ url_for('user.orders') }}" class="btn btn-secondary">Сбросить</a>
     {% endif %}
 </form>
+
+{# §4: чип-фильтр «Ждут фото» — тот же признак, что и счётчик (фото-подтема без фото) #}
+<div class="order-filter-chips" role="group" aria-label="Фильтр по фото">
+    <a href="{{ url_for('user.orders', search=search) }}"
+       class="btn btn-sm {% if not photo_filter %}btn-primary{% else %}btn-secondary{% endif %}">Все</a>
+    <a href="{{ url_for('user.orders', search=search, photo='pending') }}"
+       class="btn btn-sm {% if photo_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">
+        ⏳ Ждут фото{% if pending_count %} ({{ pending_count }}){% endif %}
+    </a>
+</div>
 
 {% if orders %}
     <div class="orders-list">
@@ -37,10 +48,23 @@
                     {{ order.photos_count }} фото
                 </span>
             </div>
+            {% if order.address %}
+            <div class="order-address">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>{{ order.address }}</span>
+            </div>
+            {% endif %}
             <div class="order-description">{{ order.description }}</div>
-            <div class="order-actions">
+            {% if order.photo_required and order.photos_count == 0 %}
+            <p class="photo-required-hint" role="status">
+                ⚠ По жалобе на этот заказ обязательно фото-подтверждение — пришлите фото после доставки.
+            </p>
+            {% endif %}
+            <form method="post" action="{{ url_for('user.upload_photo', order_id=order.id) }}"
+                  enctype="multipart/form-data" class="upload-form" data-order-id="{{ order.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="drop-zone" id="drop-zone-{{ order.id }}" data-order-id="{{ order.id }}">
-                    <input type="file" name="photo" id="file-input-{{ order.id }}" accept="image/*" capture="environment" hidden>
+                    <input type="file" name="photo" id="file-input-{{ order.id }}" accept="image/*" hidden>
                     <div class="drop-zone-content">
                         <svg class="upload-icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -52,13 +76,19 @@
                     </div>
                     <div class="drop-zone-preview" hidden></div>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm upload-btn" data-order-id="{{ order.id }}" disabled>
-                    Загрузить фото
-                </button>
-                {% if order.photos_count > 0 %}
-                <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
-                {% endif %}
-            </div>
+                <div class="order-actions">
+                    <input type="file" name="photo" id="camera-input-{{ order.id }}"
+                           accept="image/*" capture="environment" hidden>
+                    <label class="btn btn-secondary btn-sm" for="camera-input-{{ order.id }}">📷 Камера</label>
+                    <label class="btn btn-secondary btn-sm" for="file-input-{{ order.id }}">🖼 Галерея</label>
+                    <button type="submit" class="btn btn-primary btn-sm upload-btn" data-order-id="{{ order.id }}">
+                        Загрузить фото
+                    </button>
+                    {% if order.photos_count > 0 %}
+                    <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-secondary btn-sm">Посмотреть фото</a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
         {% endfor %}
     </div>
@@ -66,11 +96,11 @@
     {% if pagination.pages > 1 %}
     <nav class="pagination">
         {% if pagination.has_prev %}
-            <a href="{{ url_for('user.orders', page=pagination.prev_num, search=search) }}" class="btn btn-secondary btn-sm">← Назад</a>
+            <a href="{{ url_for('user.orders', page=pagination.prev_num, search=search, photo=photo_filter) }}" class="btn btn-secondary btn-sm">← Назад</a>
         {% endif %}
         <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
         {% if pagination.has_next %}
-            <a href="{{ url_for('user.orders', page=pagination.next_num, search=search) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+            <a href="{{ url_for('user.orders', page=pagination.next_num, search=search, photo=photo_filter) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
         {% endif %}
     </nav>
     {% endif %}
@@ -93,30 +123,97 @@ enableLiveSearch('search');
 </script>
 
 <script>
-// Drag and drop upload functionality
+// Превью, валидация и drag&drop. Прогресс загрузки — AJAX (XHR) enhancement:
+// при его отсутствии/сбое форма уходит нативно, без JS тоже работает.
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.drop-zone').forEach(zone => {
-        const orderId = zone.dataset.orderId || (zone.id || '').replace(/^drop-zone-/, '');
-        if (!orderId) return;
-        const fileInput = document.getElementById(`file-input-${orderId}`);
-        const uploadBtn = document.querySelector(`.upload-btn[data-order-id="${orderId}"]`);
-        const preview = zone.querySelector('.drop-zone-preview');
-        if (!fileInput || !uploadBtn || !preview) return;
-        let selectedFile = null;
+    document.querySelectorAll('.upload-form').forEach(form => {
+        const zone = form.querySelector('.drop-zone');
+        const picker = zone && zone.querySelector('input[type="file"]');
+        const camera = form.querySelector('input[id^="camera-input-"]');
+        const preview = zone && zone.querySelector('.drop-zone-preview');
+        if (!zone || !picker || !preview) return;
 
-        // Click to select file
+        const inputs = [picker, camera].filter(Boolean);
+
+        function showError(message) {
+            let box = form.querySelector('.upload-error');
+            if (!box) {
+                box = document.createElement('p');
+                box.className = 'upload-error';
+                box.setAttribute('role', 'alert');
+                zone.insertAdjacentElement('afterend', box);
+            }
+            // textContent, а не innerHTML: имя файла приходит от пользователя (XSS)
+            box.textContent = message;
+            box.hidden = false;
+        }
+
+        function clearError() {
+            const box = form.querySelector('.upload-error');
+            if (box) box.hidden = true;
+        }
+
+        function resetPreview() {
+            preview.hidden = true;
+            preview.replaceChildren();
+            const content = zone.querySelector('.drop-zone-content');
+            if (content) content.hidden = false;
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            clearError();
+
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                inputs.forEach(input => { input.value = ''; });
+                resetPreview();
+                showError('Недопустимый формат файла. Разрешены: JPG, PNG, WebP');
+                return;
+            }
+
+            if (file.size > 16 * 1024 * 1024) {
+                inputs.forEach(input => { input.value = ''; });
+                resetPreview();
+                showError('Файл слишком большой. Максимум 16 МБ');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = 'Предпросмотр фото';
+                img.style.maxWidth = '200px';
+                img.style.maxHeight = '200px';
+                img.style.borderRadius = '8px';
+
+                const caption = document.createElement('p');
+                caption.className = 'preview-filename';
+                caption.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+
+                preview.replaceChildren(img, caption);
+                preview.hidden = false;
+                const content = zone.querySelector('.drop-zone-content');
+                if (content) content.hidden = true;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        inputs.forEach(input => {
+            input.addEventListener('change', () => {
+                // В форме остаётся ровно один выбранный файл
+                inputs.forEach(other => { if (other !== input) other.value = ''; });
+                handleFile(input.files[0]);
+            });
+        });
+
         zone.addEventListener('click', (e) => {
             if (e.target === zone || e.target.closest('.drop-zone-content')) {
-                fileInput.click();
+                picker.click();
             }
         });
 
-        // File input change
-        fileInput.addEventListener('change', (e) => {
-            handleFile(e.target.files[0]);
-        });
-
-        // Drag and drop
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
             zone.classList.add('drag-over');
@@ -130,83 +227,96 @@ document.addEventListener('DOMContentLoaded', function() {
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
             zone.classList.remove('drag-over');
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
+            const file = e.dataTransfer && e.dataTransfer.files[0];
+            if (!file) return;
+            inputs.forEach(input => { input.value = ''; });
+            try {
+                const transfer = new DataTransfer();
+                transfer.items.add(file);
+                picker.files = transfer.files;
+            } catch (err) {
+                // Старые браузеры без DataTransfer: превью покажем, но форма файл не увидит
             }
+            handleFile(file);
         });
 
-        function handleFile(file) {
-            if (!file) return;
-            
-            // Validate file type
-            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            if (!validTypes.includes(file.type)) {
-                alert('Недопустимый формат файла. Разрешены: JPG, PNG, WebP');
+        form.addEventListener('submit', (e) => {
+            const fileInput = inputs.find(input => input.files && input.files.length);
+            if (!fileInput) {
+                e.preventDefault();
+                showError('Сначала выберите фото');
                 return;
             }
-            
-            // Validate file size (16MB)
-            if (file.size > 16 * 1024 * 1024) {
-                alert('Файл слишком большой. Максимум 16 МБ');
-                return;
-            }
+            // AJAX-прогресс — только как enhancement: без FormData/XHR форма
+            // уходит нативно (server делает flash + redirect, как и раньше)
+            if (typeof FormData === 'undefined' || typeof XMLHttpRequest === 'undefined') return;
+            e.preventDefault();
+            uploadViaXhr(form, fileInput);
+        });
 
-            selectedFile = file;
-            
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                preview.innerHTML = `
-                    <img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
-                    <p class="preview-filename">${file.name} (${(file.size / 1024).toFixed(1)} KB)</p>
-                `;
-                preview.hidden = false;
-                zone.querySelector('.drop-zone-content').hidden = true;
-                uploadBtn.disabled = false;
-            };
-            reader.readAsDataURL(file);
+        function getProgress() {
+            let bar = form.querySelector('.upload-progress');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.className = 'upload-progress';
+                bar.hidden = true;
+                bar.innerHTML = '<div class="upload-progress-track"><div class="upload-progress-fill"></div></div>' +
+                                '<span class="upload-progress-label" role="status"></span>';
+                form.querySelector('.order-actions').insertAdjacentElement('beforebegin', bar);
+            }
+            return bar;
         }
 
-        // Upload button click
-        uploadBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
-            
-            uploadBtn.disabled = true;
-            uploadBtn.innerHTML = '<span class="spinner"></span> Загрузка...';
-            uploadBtn.classList.add('loading');
-            
-            const formData = new FormData();
-            formData.append('photo', selectedFile);
-            
-            try {
-                const csrfEl = document.querySelector('input[name="csrf_token"]');
-                const response = await fetch(`/orders/${orderId}/upload`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': csrfEl ? csrfEl.value : ''
-                    }
-                });
+        function uploadViaXhr(form, fileInput) {
+            const btn = form.querySelector('.upload-btn');
+            const progress = getProgress();
+            const fill = progress.querySelector('.upload-progress-fill');
+            const label = progress.querySelector('.upload-progress-label');
+            clearError();
+            progress.hidden = false;
+            fill.style.width = '0%';
+            label.textContent = 'Загрузка 0%';
+            if (btn) btn.disabled = true;
 
-                let data = null;
-                try { data = await response.json(); } catch (e) { data = null; }
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action);
+            xhr.responseType = 'json';
 
-                if (response.ok && data && data.ok) {
-                    // Reload page to show updated state
+            xhr.upload.addEventListener('progress', (event) => {
+                if (!event.lengthComputable) {
+                    label.textContent = 'Загрузка…';
+                    return;
+                }
+                const pct = Math.round((event.loaded / event.total) * 100);
+                fill.style.width = pct + '%';
+                label.textContent = 'Загрузка ' + pct + '%';
+            });
+
+            function fail(message) {
+                progress.hidden = true;
+                if (btn) btn.disabled = false;
+                // Ошибка сервера показывается в .upload-error, файл остаётся
+                // выбранным — кнопка «Загрузить фото» = повтор
+                showError(message);
+            }
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.ok) {
+                    label.textContent = 'Готово';
                     window.location.reload();
                 } else {
-                    alert('Ошибка загрузки: ' + ((data && data.error) || ('HTTP ' + response.status)));
-                    uploadBtn.disabled = false;
-                    uploadBtn.textContent = 'Загрузить фото';
-                    uploadBtn.classList.remove('loading');
+                    const data = xhr.response || {};
+                    fail(data.error || ('Ошибка загрузки (HTTP ' + xhr.status + '). Попробуйте ещё раз'));
                 }
-            } catch (error) {
-                alert('Ошибка сети: ' + error.message);
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Загрузить фото';
-                uploadBtn.classList.remove('loading');
-            }
-        });
+            });
+            xhr.addEventListener('error', () => fail('Сеть недоступна. Проверьте соединение и повторите'));
+            xhr.addEventListener('abort', () => fail('Загрузка прервана'));
+
+            const data = new FormData();
+            data.append('csrf_token', (document.getElementById('upload-csrf') || {}).value || '');
+            data.append('photo', fileInput.files[0]);
+            xhr.send(data);
+        }
     });
 });
 </script>
@@ -250,7 +360,59 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .upload-btn {
     margin-top: 0.5rem;
-    width: 100%;
+}
+
+.upload-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(255, 69, 58, 0.12);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-size: 0.9rem;
+    text-align: left;
+}
+
+.upload-error[hidden] {
+    display: none;
+}
+
+.upload-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.upload-progress[hidden] {
+    display: none;
+}
+
+.upload-progress-track {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    overflow: hidden;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--primary);
+    transition: width 0.15s linear;
+}
+
+.upload-progress-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    min-width: 6.5rem;
+    text-align: right;
+}
+
+.upload-form .order-actions {
+    margin-top: 0.5rem;
 }
 
 .order-card {
@@ -295,6 +457,54 @@ document.addEventListener('DOMContentLoaded', function() {
     color: var(--text-secondary);
     margin-bottom: 1rem;
     line-height: 1.5;
+}
+
+.order-address {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.order-address svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.photo-required-hint {
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(255, 159, 10, 0.12);
+    border: 1px solid var(--badge-warning-fg);
+    color: var(--badge-warning-fg);
+    font-size: 0.9rem;
+}
+
+.order-filter-chips {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.order-filter-chips .btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Mobile-first: кнопки загрузки — тач-цели >= 44px */
+@media (max-width: 768px) {
+    .order-actions .btn,
+    .order-actions .upload-btn {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 .order-actions {

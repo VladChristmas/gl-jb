@@ -46,8 +46,13 @@ jobs:
           echo "MyPy version: $(mypy --version)"
           echo "Flask-SQLAlchemy version: $(python -c 'import flask_sqlalchemy; print(flask_sqlalchemy.__version__)')"
           python -c "from flask_sqlalchemy.pagination import Pagination; print('Pagination import OK')"
-          mypy app/ --ignore-missing-imports > mypy_output.txt 2>&1 || true
+          # Без «|| true»: ошибки типов не должны прятаться от CI
+          set +e
+          mypy app/ --ignore-missing-imports > mypy_output.txt 2>&1
+          status=$?
+          set -e
           cat mypy_output.txt
+          exit $status
       
       - name: Upload MyPy output
         if: always()

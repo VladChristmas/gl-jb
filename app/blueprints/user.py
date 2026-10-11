@@ -1,12 +1,24 @@
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from app.constants import ROLE_LABELS, ROLE_PICKER
+from app.constants import PHOTO_REQUIRED_TOPICS, ROLE_LABELS, ROLE_PICKER
+from app.extensions import limiter
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.message_service import MessageService
-from app.services.order_service import OrderService
+from app.services.order_service import USER_ORDERS_PHOTO_FILTER_VALUES, OrderService
 from app.services.photo_service import PhotoService
 from app.services.user_service import UserService
+from app.utils import wants_json
 
 user_bp = Blueprint("user", __name__)
 
@@ -57,44 +69,80 @@ def orders():
         return redirect(url_for("user.dashboard"))
     page = request.args.get("page", 1, type=int)
     search = request.args.get("search", "", type=str)
+    photo_filter = request.args.get("photo", "", type=str)
+    if photo_filter not in USER_ORDERS_PHOTO_FILTER_VALUES:
+        photo_filter = ""
 
-    pagination = OrderService.get_user_orders(user_id, page=page, search=search)
+    pagination = OrderService.get_user_orders(
+        user_id, page=page, search=search, photo_filter=photo_filter
+    )
     orders = pagination.items
 
+    # Один запрос на все счётчики фото вместо len(order.photos) на каждый заказ (P2-5)
+    photo_counts = PhotoService.counts_by_order([order.id for order in orders])
     for order in orders:
-        order.photos_count = len(order.photos)
+        order.photos_count = photo_counts.get(order.id, 0)
+        # Подсказка курьеру: по жалобе обязательно фото, а его ещё нет
+        order.photo_required = any(
+            topic in (order.complaint_text or "") for topic in PHOTO_REQUIRED_TOPICS
+        )
 
-    return render_template("user_orders.html", orders=orders, pagination=pagination, search=search)
+    pending_count = OrderService.count_user_orders_pending_photo(user_id)
+
+    return render_template(
+        "user_orders.html",
+        orders=orders,
+        pagination=pagination,
+        search=search,
+        photo_filter=photo_filter,
+        pending_count=pending_count,
+    )
 
 
 @user_bp.route("/orders/<int:order_id>/upload", methods=["POST"])
+@limiter.limit("30 per minute")
 @user_required
 def upload_photo(order_id):
     user_id = session["user_id"]
-    # JS-загрузка с фронтенда шлёт токен в заголовке (не в теле формы)
-    is_ajax = bool(request.headers.get("X-CSRFToken"))
+    # P1-13: fetch() не шлёт X-Requested-With — определяем по нескольким
+    # признакам, иначе JSON-клиент получает redirect вместо JSON.
+    is_ajax = wants_json(request)
 
-    photo = PhotoService.save_photo(request.files.get("photo"), order_id, user_id)
+    # В нативной форме два input name="photo" (камера с capture и галерея без
+    # него) — браузер отправляет обе части, у неиспользованной filename пустой.
+    files = [f for f in request.files.getlist("photo") if f and f.filename]
+    save_errors: list[str] = []
+    photo = PhotoService.save_photo(
+        files[0] if files else None, order_id, user_id, errors=save_errors
+    )
 
     if not photo:
+        # P2-10: конкретная причина («слишком большой» / «формат» / «не выбран»)
+        detail = save_errors[0] if save_errors else "не удалось сохранить файл"
+        message = f"Ошибка загрузки фото: {detail}"
         if is_ajax:
             return (
                 jsonify(
                     {
                         "ok": False,
-                        "error": "Ошибка загрузки фото. Проверьте формат и размер (JPG, PNG, WebP до 16 МБ).",
+                        "error": message,
                     }
                 ),
                 400,
             )
-        flash("Ошибка загрузки фото", "error")
+        flash(message, "error")
         return redirect(url_for("user.orders"))
 
     order = OrderService.get_order_by_id(order_id)
     user = UserService.get_user_by_id(user_id)
 
     if user and order:
-        EmailService.send_order_completion_email(order, user)
+        # В фоне: синхронный SMTP в POST-запросе держал ответ на загрузку
+        # фото десятки секунд. Сбой письма не должен ломать загрузку (§P1-5).
+        try:
+            EmailService.dispatch_order_completion_email(order, user)
+        except Exception:
+            current_app.logger.exception("Не удалось поставить письмо в очередь")
 
     # flash ставится в обеих ветках: после JSON-ответа JS делает reload,
     # и подтверждение «Фото загружено» видно на обновлённой странице

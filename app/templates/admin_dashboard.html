@@ -1,143 +1,218 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
 {% block title %}Панель администратора{% endblock %}
 
 {% block content %}
-<header class="page-header">
+<header class='page-header'>
     <h1>Панель администратора</h1>
-    <a href="{{ url_for('auth.admin_logout') }}" class="btn btn-secondary">Выйти</a>
+    <div class='header-actions'>
+        <div id='notification-bell' class='notification-bell' aria-label='Уведомления'>
+            <button class='notification-btn' id='notification-toggle' aria-expanded='false' aria-haspopup='true'>
+                <span class='bell-icon'>🔔</span>
+                <span class='notification-badge' id='notification-badge' style='display: none;'></span>
+            </button>
+            <div class='notification-dropdown' id='notification-dropdown' role='menu' aria-hidden='true'>
+                <div class='notification-header'>
+                    <span>Уведомления</span>
+                    <button class='notification-clear' id='notification-clear' aria-label='Очистить прочитанные'>Очистить</button>
+                </div>
+                <div class='notification-list' id='notification-list'>
+                    {% if notifications %}
+                        {% for n in notifications %}
+                        <a href='{{ n.target_url }}' class='notification-item' data-dedup-key='{{ n.dedup_key }}' role='menuitem'>
+                            <span class='notification-severity notification-{{ n.severity }}'></span>
+                            <div class='notification-content'>
+                                <div class='notification-title'>{{ n.title }}</div>
+                                <div class='notification-desc'>{{ n.description }}</div>
+                                <div class='notification-meta'>
+                                    <span class='notification-time'>{{ n.time_iso[:16].replace('T', ' ') }}</span>
+                                    <span class='notification-action'>{{ n.target_label }}</span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class='notification-empty'>Нет уведомлений</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <a href='{{ url_for("auth.admin_logout") }}' class='btn btn-secondary'>Выйти</a>
+    </div>
 </header>
 
-<!-- Stats Cards -->
-<div class="stats-grid stats-grid-2">
-    <div class="stat-card">
-        <div class="stat-number">{{ stats.couriers_count }}</div>
-        <div class="stat-label">Курьеров</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number" id="stat-pending" style="color: {% if stats.pending_count > 0 %}var(--warning){% else %}var(--success){% endif %};">
-            {{ stats.pending_count }}
+<!-- Period Selector -->
+<div class='period-selector' role='group' aria-label='Период'>
+    <a href='{{ url_for("admin.dashboard", period="today") }}' class='period-btn {% if period == "today" %}is-active{% endif %}'>Сегодня</a>
+    <a href='{{ url_for("admin.dashboard", period="week") }}' class='period-btn {% if period == "week" %}is-active{% endif %}'>Неделя</a>
+    <a href='{{ url_for("admin.dashboard", period="month") }}' class='period-btn {% if period == "month" %}is-active{% endif %}'>Месяц</a>
+    <details class='period-custom'>
+        <summary class='period-btn {% if period == "custom" %}is-active{% endif %}'>Произвольный</summary>
+        <form method='get' class='period-form'>
+            <input type='hidden' name='period' value='custom'>
+            <label for='date_from'>От</label>
+            <input type='date' id='date_from' name='date_from' value='{{ date_from }}'>
+            <label for='date_to'>До</label>
+            <input type='date' id='date_to' name='date_to' value='{{ date_to }}'>
+            <button type='submit' class='btn btn-sm btn-primary'>Применить</button>
+        </form>
+    </details>
+</div>
+
+<!-- KPI Cards Grid -->
+<div class='kpi-grid' role='list' aria-label='Ключевые показатели'>
+    <a href='{{ url_for("admin.orders", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_count }}</span>
+        <span class='kpi-label'>Заказы</span>
+        <span class='kpi-hint'>за период</span>
+    </a>
+
+    <a href='{{ url_for("admin.orders", photo_filter="without_photos", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card kpi-warning' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_without_photos }}</span>
+        <span class='kpi-label'>Без фото</span>
+        <span class='kpi-hint'>всего</span>
+    </a>
+
+    <a href='{{ url_for("admin.complaints", status="открыта", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card kpi-danger' role='listitem'>
+        <span class='kpi-value'>{{ stats.open_complaints_count }}</span>
+        <span class='kpi-label'>Открытые жалобы</span>
+        <span class='kpi-hint'>за период</span>
+    </a>
+
+    <a href='{{ url_for("admin.orders", complaint_filter="with_complaints", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card kpi-danger' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_with_complaints }}</span>
+        <span class='kpi-label'>Заказы с жалобами</span>
+        <span class='kpi-hint'>уникальные</span>
+    </a>
+
+    <a href='{{ url_for("admin.couriers", week=current_week_monday) }}' class='kpi-card' role='listitem'>
+        <span class='kpi-value'>{% if stats.avg_courier_score is not none %}{{ stats.avg_courier_score }}{% else %}—{% endif %}</span>
+        <span class='kpi-label'>Рейтинг курьеров</span>
+        <span class='kpi-hint'>неделя</span>
+    </a>
+
+    <a href='#attention' class='kpi-card kpi-attention' role='listitem'>
+        <span class='kpi-value'>{{ stats.attention_total }}</span>
+        <span class='kpi-label'>Проблемы</span>
+        <span class='kpi-hint'>требуют внимания</span>
+    </a>
+</div>
+
+<!-- Attention Block -->
+<section id='attention' class='attention-section' aria-label='Требует внимания'>
+    <h2>Требуют внимания</h2>
+
+    {% set has_attention = stats.pending_count > 0 or stats.open_complaints_count > 0 or stats.import_errors_count > 0 or stats.mirror_only_count > 0 %}
+
+    {% if not has_attention %}
+    <div class='hero-card hero-perfect'>
+        <div class='hero-icon'>✅</div>
+        <div class='hero-content'>
+            <div class='hero-title'>Всё в порядке</div>
+            <div class='hero-text'>Нет заказов, ожидающих фото, открытых жалоб или ошибок импорта.</div>
         </div>
-        <div class="stat-label">Ожидают фото</div>
     </div>
-    <div class="stat-card">
-        <div class="stat-number">{{ stats.users_count }}</div>
-        <div class="stat-label">Пользователей</div>
+    {% else %}
+    <div class='attention-list'>
+        {% if stats.pending_count > 0 %}
+        <a href='{{ url_for("admin.orders", photo_filter="without_photos", period=period, date_from=date_from, date_to=date_to) }}' class='attention-item'>
+            <span class='badge badge-warning'>{{ stats.pending_count }}</span>
+            <span>Заказы без обязательных фото</span>
+        </a>
+        {% endif %}
+
+        {% if stats.open_complaints_count > 0 %}
+        <a href='{{ url_for("admin.complaints", status="открыта", period=period, date_from=date_from, date_to=date_to) }}' class='attention-item'>
+            <span class='badge badge-danger'>{{ stats.open_complaints_count }}</span>
+            <span>Открытые жалобы</span>
+        </a>
+        {% endif %}
+
+        {% if stats.import_errors_count > 0 %}
+        <a href='{{ url_for("admin.import_report") }}' class='attention-item'>
+            <span class='badge badge-warning'>{{ stats.import_errors_count }}</span>
+            <span>Ошибки последнего импорта</span>
+        </a>
+        {% endif %}
+
+        {% if stats.mirror_only_count > 0 %}
+        <div class='attention-item attention-info'>
+            <span class='badge badge-info'>{{ stats.mirror_only_count }}</span>
+            <span>Жалобы только в зеркале (не гидратированы)</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+<!-- Analytics -->
+<div class='analytics-grid'>
+    <div class='card chart-card'>
+        <h3>Заказы по дням</h3>
+        {% if stats.daily_orders %}
+        <div class='sparkline-container' role='img' aria-label='График заказов по дням'>
+            <svg class='sparkline' viewBox='0 0 100 30' preserveAspectRatio='none'>
+                {% set max_count = stats.daily_orders | map(attribute='count') | max %}
+                {% set points_str = '' %}
+                {% for item in stats.daily_orders %}
+                    {% set x = loop.index0 * (100 / (stats.daily_orders | length - 1)) if stats.daily_orders | length > 1 else 50 %}
+                    {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
+                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                {% endfor %}
+                {% if points_str %}
+                <polyline fill='none' stroke='var(--primary)' stroke-width='2' points='{{ points_str }}' />
+                {% endif %}
+            </svg>
+        </div>
+        <div class='sparkline-labels'>
+            {% for item in stats.daily_orders %}
+            <span>{{ item.day if item.day else "—" }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class='empty-state' style='padding: 24px; text-align: center;'>
+            <div class='empty-state-text'>Нет данных за период</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class='card chart-card'>
+        <h3>Жалобы по дням</h3>
+        <div class='empty-state' style='padding: 24px; text-align: center;'>
+            <div class='empty-state-text'>Динамика жалоб — в разработке</div>
+        </div>
     </div>
 </div>
 
 <!-- Completion Rate -->
-<div class="card">
+<div class='card'>
     <h2>Общий процент выполнения</h2>
-    <div class="progress-bar-container">
-        <div class="progress-bar" style="width: {{ stats.completion_rate }}%;">
+    <div class='progress-bar-container'>
+        <div class='progress-bar' style='width: {{ stats.completion_rate }}%;'>
             <span>{{ stats.completion_rate }}%</span>
         </div>
     </div>
-    <p class="help-text" style="margin-top: 8px;">
-        {{ stats.orders_with_photos }} из {{ stats.orders_count }} заказов подтверждены фото
+    <p class='help-text' style='margin-top: 8px;'>
+        <a href='{{ url_for("admin.orders", photo_filter="with_photos", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card-link'>
+            {{ stats.orders_with_photos }}
+        </a> из {{ stats.orders_count }} заказов подтверждены фото
     </p>
-</div>
-
-<!-- Quick Actions -->
-<div class="card">
-    <h2>Быстрые действия</h2>
-    <nav class="admin-nav">
-        <a href="{{ url_for('admin.users') }}" class="nav-item">
-            <span>👥</span> Пользователи
-        </a>
-        <a href="{{ url_for('admin.orders') }}" class="nav-item">
-            <span>📋</span> Все заказы
-        </a>
-        <a href="{{ url_for('admin.pickers') }}" class="nav-item">
-            <span>📦</span> Сборщики
-        </a>
-        <a href="{{ url_for('admin.couriers') }}" class="nav-item">
-            <span>🚚</span> Курьеры
-        </a>
-        <a href="{{ url_for('user.chat') }}" class="nav-item">
-            <span>💬</span> Чат
-        </a>
-    </nav>
-</div>
-
-<div class="dashboard-grid">
-    <!-- Best Pickers -->
-    <div class="card">
-        <div class="page-header" style="margin-bottom: 8px;">
-            <h2 style="margin: 0;">Лучшие сборщики</h2>
-            <a href="{{ url_for('admin.pickers') }}" class="btn btn-sm btn-secondary">Все →</a>
-        </div>
-        <p class="help-text" style="margin-top: 0;">
-            Чем выше скорость сборки и ниже ожидание — тем лучше
-        </p>
-        {% if stats.best_pickers %}
-        <div class="activity-list">
-            {% for picker in stats.best_pickers %}
-            <div class="activity-item">
-                <div class="activity-icon">{{ loop.index }}</div>
-                <div class="activity-body">
-                    <div class="activity-title">{{ picker.fio }}</div>
-                    <div class="activity-meta">
-                        Скорость: {{ picker.pick_speed }} · Ожидание: {{ picker.wait_time }}
-                        · Собрано: {{ picker.pick_count }}
-                    </div>
-                </div>
-                <div class="badge badge-success">{{ picker.score }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state" style="padding: 24px;">
-            <div class="empty-state-text">Нет данных о сборщиках — импортируйте файл со столбцом «Сборщик»</div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Best Couriers -->
-    <div class="card">
-        <div class="page-header" style="margin-bottom: 8px;">
-            <h2 style="margin: 0;">Лучшие курьеры</h2>
-            <a href="{{ url_for('admin.couriers') }}" class="btn btn-sm btn-secondary">Все →</a>
-        </div>
-        <p class="help-text" style="margin-top: 0;">
-            Меньше жалоб по подтемам «нужно фото» — тем лучше
-        </p>
-        {% if stats.best_couriers %}
-        <div class="activity-list">
-            {% for c in stats.best_couriers %}
-            <div class="activity-item">
-                <div class="activity-icon">{{ loop.index }}</div>
-                <div class="activity-body">
-                    <div class="activity-title">{{ c.fio }}</div>
-                    <div class="activity-meta">{{ c.complaints_count }} обращений из {{ c.orders_count }} заказов</div>
-                </div>
-                <div class="badge {{ 'badge-success' if c.complaints_count == 0 else 'badge-warning' }}">{{ c.complaints_count }}</div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state" style="padding: 24px;">
-            <div class="empty-state-text">Нет заказов с указанным курьером — импортируйте файл со столбцом «Курьер»</div>
-        </div>
-        {% endif %}
-    </div>
 </div>
 
 <!-- Orders awaiting photo confirmation -->
-<div class="card">
-    <div class="page-header" style="margin-bottom: 8px;">
-        <h2 style="margin: 0;">Ожидают фото</h2>
-        <span class="badge badge-warning" id="pending-count" style="font-size: 16px; padding: 6px 14px;">
-            {{ stats.pending_count }}
-        </span>
+<div class='card'>
+    <div class='page-header' style='margin-bottom: 8px;'>
+        <h2 style='margin: 0;'>Ожидают фото</h2>
+<span class='badge badge-warning' id='pending-count' style='font-size: 16px; padding: 6px 14px;'>
+        {{ stats.pending_count }}
+    </span>
     </div>
-    <p class="help-text" style="margin-top: 0;">
+    <p class='help-text' style='margin-top: 0;'>
         Заказы с подтемами, по которым нужно фото-подтверждение. Нажмите на заказ, чтобы открыть подробную информацию.
     </p>
     {% if stats.pending_orders %}
-    <div class="table-wrap">
-    <table class="table">
+    <div class='table-wrap'>
+    <table class='table'>
         <thead>
             <tr>
                 <th>ФИО курьера</th>
@@ -148,18 +223,18 @@
             </tr>
         </thead>
         <tbody>
-            {% for order, user in stats.pending_orders %}
+            {% for order, user in stats.pending_orders[:10] %}
             <tr>
                 <td><strong>{{ order.courier_fio or user.fio }}</strong></td>
                 <td>{{ order.address or '—' }}</td>
                 <td>{{ order.delivered_at or '—' }}</td>
                 <td>
-                    <small style="color: var(--text-secondary);">
+                    <small style='color: var(--text-secondary);'>
                         {{ order.complaint_text[:60] }}{% if order.complaint_text|length > 60 %}…{% endif %}
                     </small>
                 </td>
                 <td>
-                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">
+                    <a href='{{ url_for("admin.edit_order", order_id=order.id) }}' class='btn btn-sm btn-secondary'>
                         {{ order.order_number or '#' ~ order.id }} →
                     </a>
                 </td>
@@ -167,53 +242,134 @@
             {% endfor %}
         </tbody>
     </table>
-</div>
-    <p class="help-text" style="margin-top: 8px;">
-        <a href="{{ url_for('admin.orders') }}">Все заказы (с фото и ждущие фото) →</a>
+    </div>
+    {% if stats.pending_count > stats.pending_orders|length %}
+    <p class='help-text' style='margin-top: 8px;'>
+        Показаны первые {{ stats.pending_orders|length }} из {{ stats.pending_count }} —
+        <a href='{{ url_for("admin.orders", photo_filter="without_photos", period=period, date_from=date_from, date_to=date_to) }}'>открыть все в списке заказов</a>.
     </p>
+    {% endif %}
     {% else %}
-    <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-text">Все заказы с фото-подтемами подтверждены</div>
+    <div class='empty-state' style='padding: 24px;'>
+        <div class='empty-state-text'>Все заказы с фото-подтемами подтверждены</div>
     </div>
     {% endif %}
 </div>
 
+<div class='dashboard-grid'>
+    <!-- Best Couriers -->
+    <div class='card'>
+        <div class='page-header' style='margin-bottom: 8px;'>
+            <h2 style='margin: 0;'>Лучшие курьеры</h2>
+            <a href='{{ url_for("admin.couriers", week=current_week_monday) }}' class='btn btn-sm btn-secondary'>Все →</a>
+        </div>
+        <p class='help-text' style='margin-top: 0;'>
+            Текущая неделя: заказы с жалобами ÷ заказы периода × 100 — чем меньше, тем лучше
+        </p>
+        {% if stats.best_couriers %}
+        <div class='activity-list'>
+            {% for c in stats.best_couriers[:5] %}
+            <div class='activity-item'>
+                <div class='activity-icon'>{{ loop.index }}</div>
+                <div class='activity-body'>
+                    <div class='activity-title'>{{ c.fio }}</div>
+                    <div class='activity-meta'>{{ c.orders_with_complaints_count }} заказов с жалобами из {{ c.orders_count }} (жалоб: {{ c.complaints_count }})</div>
+                </div>
+                <div class='badge {% if c.complaint_rate is not none and c.complaint_rate < 5 %}badge-success{% else %}badge-warning{% endif %}'>{{ '%.0f'|format(c.complaint_rate) if c.complaint_rate is not none else '—' }}%</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class='empty-state' style='padding: 24px;'>
+            <div class='empty-state-text'>Нет заказов с указанным курьером</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Best Pickers -->
+    <div class='card'>
+        <div class='page-header' style='margin-bottom: 8px;'>
+            <h2 style='margin: 0;'>Лучшие сборщики</h2>
+            <a href='{{ url_for("admin.pickers") }}' class='btn btn-sm btn-secondary'>Все →</a>
+        </div>
+        <p class='help-text' style='margin-top: 0;'>
+            Чем выше скорость сборки и ниже ожидание — тем лучше
+        </p>
+        {% if stats.best_pickers %}
+        <div class='activity-list'>
+            {% for picker in stats.best_pickers[:5] %}
+            <div class='activity-item'>
+                <div class='activity-icon'>{{ loop.index }}</div>
+                <div class='activity-body'>
+                    <div class='activity-title'>{{ picker.fio }}</div>
+                    <div class='activity-meta'>
+                        Скорость: {{ picker.pick_speed }} · Ожидание: {{ picker.wait_time }}
+                        · Собрано: {{ picker.pick_count }}
+                    </div>
+                </div>
+                <div class='badge badge-success'>{{ picker.score }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class='empty-state' style='padding: 24px;'>
+            <div class='empty-state-text'>Нет данных о сборщиках</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class='card quick-actions'>
+    <h2>Быстрые действия</h2>
+    <nav class='admin-nav'>
+        <a href='{{ url_for("admin.users") }}' class='nav-item'>
+            <span>👥</span> Пользователи
+        </a>
+        <a href='{{ url_for("admin.orders") }}' class='nav-item'>
+            <span>📋</span> Все заказы
+        </a>
+        <a href='{{ url_for("admin.audit") }}' class='nav-item'>
+            <span>📜</span> История изменений
+        </a>
+        <a href='{{ url_for("admin.pickers") }}' class='nav-item'>
+            <span>📦</span> Сборщики
+        </a>
+        <a href='{{ url_for("admin.couriers") }}' class='nav-item'>
+            <span>🚚</span> Курьеры
+        </a>
+        <a href='{{ url_for("user.chat") }}' class='nav-item'>
+            <span>💬</span> Чат
+        </a>
+    </nav>
+</div>
+
 <!-- Storage Info -->
-<div class="card">
+<div class='card'>
     <h2>Хранилище</h2>
-    <div class="storage-info">
-        <div class="storage-item">
-            <div class="storage-label">Путь</div>
+    <div class='storage-info'>
+        <div class='storage-item'>
+            <div class='storage-label'>Путь</div>
             <code>{{ stats.upload_folder }}</code>
         </div>
-        <div class="storage-item">
-            <div class="storage-label">Размер</div>
-            <div class="storage-value">{{ (stats.upload_size / 1024 / 1024) | round(2) }} MB</div>
+        <div class='storage-item'>
+            <div class='storage-label'>Размер</div>
+            <div class='storage-value'>{{ (stats.upload_size / 1024 / 1024) | round(2) }} MB</div>
         </div>
-        <div class="storage-item">
-            <div class="storage-label">Файлов</div>
-            <div class="storage-value">{{ stats.photos_count }}</div>
+        <div class='storage-item'>
+            <div class='storage-label'>Файлов</div>
+            <div class='storage-value'>{{ stats.photos_count }}</div>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{{ url_for('static', filename='notifications.js') }}"></script>
 <script>
-(function () {
-    function refreshPending() {
-        fetch("{{ url_for('admin.api_pending_count') }}")
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (typeof data.pending !== "number") return;
-                var badge = document.getElementById("pending-count");
-                if (badge) badge.textContent = data.pending;
-                var stat = document.getElementById("stat-pending");
-                if (stat) stat.textContent = data.pending;
-            })
-            .catch(function () { /* ignore */ });
-    }
-    setInterval(refreshPending, 30000);
-})();
+GLB.initNotifications(
+    '{{ url_for("admin.api_notifications") }}',
+    '{{ url_for("admin.api_pending_count") }}'
+);
 </script>
 {% endblock %}

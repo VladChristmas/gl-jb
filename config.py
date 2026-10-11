@@ -35,10 +35,25 @@ MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
+# Еженедельный рейтинг курьеров (§5-§6 брифа).
+# Пороги ПРЕДЛОЖЕНЫ и требуют согласования до production:
+#   RATING_MIN_ORDERS — минимальная выборка заказов за неделю для расчёта балла;
+#   RATING_PENALTY_PER_PERCENT — вес штрафа K в формуле 100 - rate * K;
+#   RATING_DATE_SOURCE — источник даты заказа для недели:
+#     "delivered_at" (дата доставки, по умолчанию) | "created_at" (дата создания).
+RATING_MIN_ORDERS = int(os.environ.get("RATING_MIN_ORDERS", 10))
+RATING_PENALTY_PER_PERCENT = float(os.environ.get("RATING_PENALTY_PER_PERCENT", 1.0))
+RATING_DATE_SOURCE = os.environ.get("RATING_DATE_SOURCE", "delivered_at")
+
 RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
 
-FLASK_ENV = os.environ.get("FLASK_ENV", "production")
-FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
+FLASK_ENV = os.environ.get("FLASK_ENV", "development")
+FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"
+
+# Базовый флаг Secure-куки. Фактическое значение пересчитывается на каждый запрос
+# (см. app/__init__.py): Secure-куку нельзя ставить на чистом HTTP, иначе браузер
+# её отбрасывает и пользователь «выпадает» из аккаунта сразу после логина.
+SESSION_COOKIE_SECURE = not FLASK_DEBUG
 
 # Email settings (настроено для mail.ru по умолчанию)
 MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.mail.ru")

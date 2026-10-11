@@ -9,7 +9,8 @@ class TestUserService:
         user = UserService.create_user(unique_fio)
         assert user.fio == unique_fio
         assert user.token is not None
-        assert len(user.token) == 5
+        # P1-8: token_urlsafe(24) = 32 символа (раньше было 5)
+        assert len(user.token) >= 32
         assert user.id is not None
 
     def test_get_user_by_id(self, db_session, admin_user):
@@ -54,7 +55,7 @@ class TestUserService:
         user = UserService.regenerate_token(admin_user.id)
         assert user is not None
         assert user.token != old_token
-        assert len(user.token) == 5
+        assert len(user.token) >= 32
 
     def test_get_users_map(self, db_session, admin_user, regular_user):
         users_map = UserService.get_users_map()

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Жалоба #{{ complaint.id }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Жалоба #{{ complaint.id }}</h1>
+    <a href="{{ url_for('admin.complaints', search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary">Назад к списку</a>
+</header>
+
+<article class="complaint-detail">
+    <header class="complaint-detail-header">
+        <div class="complaint-id-row">
+            <span class="label">Жалоба</span>
+            <strong>#{{ complaint.id }}</strong>
+        </div>
+        <div class="status-form">
+            <label for="status_select">Статус</label>
+            <form method="post" class="status-form-inline" style="display: flex; gap: 8px; align-items: center;">
+                <input type="hidden" name="action" value="change_status">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="status" id="status_select" class="form-select" style="min-width: 140px;">
+                    <option value="" {% if complaint.status == '' or complaint.status is none %}selected{% endif %}>— без статуса —</option>
+                    <option value="открыта" {% if complaint.status == 'открыта' %}selected{% endif %}>Открыта</option>
+                    <option value="в работе" {% if complaint.status == 'в работе' %}selected{% endif %}>В работе</option>
+                    <option value="закрыта" {% if complaint.status == 'закрыта' %}selected{% endif %}>Закрыта</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">Сохранить</button>
+                <input type="hidden" name="action" value="change_status">
+            </form>
+        </div>
+    </header>
+
+    <div class="complaint-detail-grid">
+        <!-- Основная информация -->
+        <section class="detail-card">
+            <h2>Информация о жалобе</h2>
+            <dl class="detail-list">
+                <dt>ID жалобы</dt>
+                <dd>#{{ complaint.id }}</dd>
+
+                <dt>Текст жалобы</dt>
+                <dd class="complaint-text-full">{{ complaint.text }}</dd>
+
+                <dt>Статус</dt>
+                <dd>
+                    {% if complaint.status %}
+                    <span class="badge
+                        {%- if complaint.status == 'открыта' %} badge-danger
+                        {%- elif complaint.status == 'в работе' %} badge-warning
+                        {%- elif complaint.status == 'закрыта' %} badge-success
+                        {%- endif %}">{{ complaint.status }}</span>
+                    {% else %}
+                    <span class="badge badge-secondary">—</span>
+                    {% endif %}
+                </dd>
+
+                <dt>Дата создания</dt>
+                <dd>{{ complaint.created_at.strftime('%d.%m.%Y %H:%M') if complaint.created_at else '—' }}</dd>
+            </dl>
+        </section>
+
+        <!-- Заказ -->
+        <section class="detail-card">
+            <h2>Связанный заказ</h2>
+            <dl class="detail-list">
+                <dt>Номер заказа</dt>
+                <dd>
+                    <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="order-link">
+                        <strong>{{ order.order_number or '#' ~ order.id }}</strong>
+                    </a>
+                </dd>
+
+                <dt>Клиент</dt>
+                <dd><a href="{{ url_for('admin.edit_user', user_id=user.id) }}">{{ user.fio }}</a></dd>
+
+                <dt>Курьер</dt>
+                <dd>{{ order.courier_fio or '—' }}</dd>
+
+                <dt>Адрес</dt>
+                <dd>{{ order.address or '—' }}</dd>
+
+                <dt>Доставлен</dt>
+                <dd>{{ order.delivered_at or '—' }}</dd>
+
+                <dt>Сборщик</dt>
+                <dd>{{ order.picker_fio or '—' }}</dd>
+            </dl>
+            <div class="detail-actions" style="margin-top: 12px;">
+                <a href="{{ url_for('admin.edit_order', order_id=order.id) }}" class="btn btn-sm btn-secondary">Редактировать заказ</a>
+                {% if photos_count > 0 %}
+                <a href="{{ url_for('admin.order_photos', order_id=order.id) }}" class="btn btn-sm btn-secondary">Фото заказа ({{ photos_count }})</a>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if photos_count > 0 %}
+        <!-- Фотографии -->
+        <section class="detail-card">
+            <h2>Фотографии заказа ({{ photos_count }})</h2>
+            <div class="photos-grid">
+                {% for photo in photos %}
+                <figure class="photo-item">
+                    <a href="{{ url_for('main.uploaded_file', filename=photo.filename) }}" target="_blank" rel="noopener">
+                        <img src="{{ url_for('main.uploaded_file', filename=photo.filename) }}" alt="Фото {{ loop.index }}" loading="lazy">
+                    </a>
+                    <figcaption>
+                        <small>{{ photo.original_filename }}</small>
+                        <br><small>{{ photo.uploaded_at.strftime('%d.%m %H:%M') if photo.uploaded_at else '' }}</small>
+                    </figcaption>
+                </figure>
+                {% endfor %}
+            </div>
+        </section>
+        {% elif photo_required %}
+        <section class="detail-card warning-card">
+            <h2>⚠ Требуется фото</h2>
+            <p>По данной жалобе требуется фото-подтверждение, но фото пока не загружены.</p>
+            <a href="{{ url_for('admin.order_photos', order_id=order.id) }}" class="btn btn-primary">Загрузить фото</a>
+        </section>
+        {% endif %}
+
+        <!-- История изменений (пока только статус) -->
+        <section class="detail-card">
+            <h2>Действия</h2>
+            <div class="actions-list">
+                <form method="post" style="display: inline;">
+                    <input type="hidden" name="action" value="change_status">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="quick_status">Быстрое изменение статуса:</label>
+                    <select name="status" id="quick_status" class="form-select" style="width: auto; display: inline-block; min-width: 140px;">
+                        <option value="">— выбрать —</option>
+                        <option value="открыта">Открыта</option>
+                        <option value="в работе">В работе</option>
+                        <option value="закрыта">Закрыта</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary">Применить</button>
+                    <input type="hidden" name="action" value="change_status">
+                </form>
+            </div>
+        </section>
+    </div>
+</article>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Lightbox for photos
+    document.querySelectorAll('.photos-grid img').forEach(img => {
+        img.addEventListener('click', function(e) {
+            e.preventDefault();
+            const overlay = document.createElement('div');
+            overlay.className = 'lightbox-overlay';
+            overlay.innerHTML = '<img src="' + this.src + '" alt="">';
+            overlay.addEventListener('click', function() {
+                this.remove();
+            });
+            document.body.appendChild(overlay);
+        });
+    });
+});
+</script>
+{% endblock %}

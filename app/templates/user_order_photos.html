@@ -14,6 +14,7 @@
 
 <div class="order-info">
     <p><strong>Номер:</strong> {{ order.order_number }}</p>
+    {% if order.address %}<p><strong>Адрес:</strong> {{ order.address }}</p>{% endif %}
     <p><strong>Описание:</strong> {{ order.description }}</p>
 </div>
 
@@ -296,15 +297,29 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 @media (max-width: 600px) {
+    /* Плотнее сетка: 2 колонки на типовом телефоне (320–600px) */
+    .photos-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+
     .lightbox-prev, .lightbox-next {
         display: none;
     }
-    
+
     .lightbox-close {
         top: 10px;
         right: 10px;
-        width: 40px;
-        height: 40px;
+        /* Тач-цель >= 44px (WCAG 2.5.5) */
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Тач-цель «Удалить фото» */
+    .photo-meta .btn-sm {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
     }
 }
 </style>

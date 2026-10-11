@@ -1,7 +1,8 @@
 import os
+import threading
 from typing import cast
 
-from flask import current_app
+from flask import Flask, current_app
 
 from app.models.order import Order
 from app.models.photo import Photo
@@ -15,12 +16,37 @@ from config import (
 )
 
 
-class EmailService:
-    """Синхронная отправка писем.
+def _send_completion_email_in_background(app: Flask, order_id: int, user_id: int) -> None:
+    """Отправляет письмо в отдельном потоке со своим app-context."""
+    try:
+        with app.app_context():
+            from app.extensions import db
+            from app.models import Order as OrderModel
+            from app.models import User as UserModel
 
-    На проде нет Celery-воркера и Redis — постановка в очередь означала бы,
-    что письмо никогда не уйдёт. Поэтому письмо собирается и отправляется
-    сразу в том же запросе.
+            try:
+                order = db.session.get(OrderModel, order_id)
+                user = db.session.get(UserModel, user_id)
+                if order is None or user is None:
+                    app.logger.warning(
+                        f"Completion email skipped: order {order_id} or user {user_id} "
+                        "no longer exists"
+                    )
+                    return
+                EmailService.send_order_completion_email(order, user)
+            finally:
+                db.session.remove()
+    except Exception as exc:
+        app.logger.error(f"Completion email failed in background: {exc}")
+
+
+class EmailService:
+    """Отправка писем.
+
+    Основной путь — в фоне (`dispatch_order_completion_email`): SMTP в
+    POST-запросе держал ответ до десятков секунд и блокировал загрузку фото.
+    `send_*` остаётся синхронным для явных действий админа, где нужен
+    немедленный ответ «отправлено/ошибка», и для Celery-тасков.
     """
 
     @staticmethod
@@ -61,6 +87,34 @@ class EmailService:
         except Exception as e:
             current_app.logger.error(f"Failed to send email: {e}")
             return False
+
+    @staticmethod
+    def dispatch_order_completion_email(order: Order, user: User) -> None:
+        """Ставит письмо о загруженном фото в фон и сразу возвращает управление.
+
+        Приоритет: Celery (если настроен Redis) → daemon-поток с app-context.
+        Ошибки отправки уходят только в лог: на результат загрузки фото
+        письмо не влияет.
+        """
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
+        order_id, user_id = order.id, user.id
+
+        if getattr(app, "celery", None) is not None:
+            try:
+                from app.tasks import send_order_completion_email_task
+
+                send_order_completion_email_task.delay(order_id, user_id)
+                app.logger.info(f"Completion email queued for order {order_id}")
+                return
+            except Exception as exc:
+                app.logger.error(f"Failed to queue completion email, using thread: {exc}")
+
+        threading.Thread(
+            target=_send_completion_email_in_background,
+            args=(app, order_id, user_id),
+            daemon=True,
+            name=f"completion-email-{order_id}",
+        ).start()
 
     @staticmethod
     def send_order_completion_email(order: Order, user: User) -> bool:

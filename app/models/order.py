@@ -23,6 +23,10 @@ class Order(db.Model):  # type: ignore[name-defined]
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     photos = db.relationship("Photo", backref="order", lazy=True, cascade="all, delete-orphan")
+    # Несколько жалоб на заказ; complaint_* выше — зеркало этих строк
+    complaints = db.relationship(
+        "Complaint", back_populates="order", lazy=True, cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Order {self.id}>"

@@ -3,6 +3,7 @@ from flask_sqlalchemy.pagination import Pagination
 from app.constants import ROLE_COURIER, USER_ROLES
 from app.extensions import db
 from app.models.user import User
+from app.services.audit_service import AuditService
 from app.utils.token import generate_token
 
 
@@ -22,6 +23,7 @@ class UserService:
         db.session.add(user)
         db.session.commit()
         _invalidate_stats()
+        AuditService.log_user_create(user)
         return user
 
     @staticmethod
@@ -51,6 +53,7 @@ class UserService:
             from app.models.photo import Photo
             from app.services.photo_service import PhotoService
 
+            user_fio = user.fio
             # Файлы фото всех заказов пользователя — до каскадного удаления
             filenames = [
                 row[0]
@@ -65,6 +68,7 @@ class UserService:
             db.session.commit()
             _invalidate_stats()
             PhotoService.remove_files(filenames)
+            AuditService.log_user_delete(user_fio, user_id)
         return user
 
     @staticmethod
@@ -73,14 +77,17 @@ class UserService:
         if user:
             user.token = generate_token()
             db.session.commit()
+            AuditService.log_user_token_regen(user)
         return user
 
     @staticmethod
     def set_role(user_id: int, role: str) -> User | None:
         user = db.session.get(User, user_id)
         if user and role in USER_ROLES:
+            old_role = user.role
             user.role = role
             db.session.commit()
+            AuditService.log_user_role_change(user, old_role, role)
         return user
 
     @staticmethod

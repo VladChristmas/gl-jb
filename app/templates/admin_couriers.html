@@ -1,95 +1,354 @@
 {% extends "base.html" %}
 
-{% block title %}Дашборд курьеров{% endblock %}
+{% block title %}Рейтинг курьеров{% endblock %}
 
 {% block content %}
+{% macro sort_link(field, label) -%}
+    <a href="{{ url_for('admin.couriers', week=week_param, sort=field, order=('asc' if (sort == field and order == 'desc') else 'desc'), search=search) }}">{{ label }}{% if sort == field %} {{ '▲' if order == 'asc' else '▼' }}{% endif %}</a>
+{%- endmacro %}
+
 <a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+
 <div class="page-header">
-    <h1>Дашборд курьеров</h1>
+    <h1>Рейтинг курьеров</h1>
     <div class="user-info">
         <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">Пользователи</a>
         <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Все заказы</a>
     </div>
 </div>
 
-<!-- Stats Cards -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-number">{{ users_count }}</div>
-        <div class="stat-label">Курьеров</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{{ orders_with_complaints }}</div>
-        <div class="stat-label">Заказов с жалобами</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number" style="color: {% if awaiting_photo > 0 %}var(--warning){% else %}var(--success){% endif %};">
-            {{ awaiting_photo }}
+<!-- Week Navigation & Period Selector -->
+<div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('admin.couriers', week=week_links.prev) }}" class="btn btn-sm btn-secondary" title="Предыдущая неделя">‹</a>
+            <strong style="min-width: 160px; text-align: center;">{{ rating.label if rating else week_param }}</strong>
+            <a href="{{ url_for('admin.couriers', week=week_links.next) }}" class="btn btn-sm btn-secondary" title="Следующая неделя">›</a>
+            <a href="{{ url_for('admin.couriers', week=week_links.now) }}" class="btn btn-sm btn-secondary" title="Текущая неделя">Сейчас</a>
         </div>
-        <div class="stat-label">Ожидают фото</div>
+        <form method="get" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <input type="hidden" name="week" value="{{ week_param }}">
+            <input type="search" name="search" value="{{ search }}" placeholder="Поиск по ФИО"
+                   style="min-width: 180px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px;">
+            <button type="submit" class="btn btn-sm btn-secondary">Найти</button>
+            {% if search %}<a href="{{ url_for('admin.couriers', week=week_param) }}" class="btn btn-sm btn-secondary">Сбросить</a>{% endif %}
+        </form>
     </div>
 </div>
 
-<!-- Complaints: who delivered -->
+{% if rating_error %}
 <div class="card">
-    <h2>⚠️ Заказы с жалобами</h2>
-    <p class="help-text" style="margin-top: 0;">
-        Фото запрашивается только для подтем: «Товар побит/вскрыт», «Не донесли часть товаров из заказа»,
-        «Не учли комментарий к заказу», «Принесли чужой заказ»
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-title">Не удалось рассчитать рейтинг</div>
+        <div class="empty-state-text">
+            Ошибка данных за выбранный период. Нули не показываются, чтобы не выдать отсутствие данных за результат.
+        </div>
+    </div>
+</div>
+{% elif rating %}
+
+<!-- KPI Cards -->
+<div class="card">
+    <div class="kpi-grid" style="margin-bottom: 0;">
+        <div class="kpi-card">
+            <div class="kpi-value">{{ rating.kpi.orders_total }}</div>
+            <div class="kpi-label">Заказов в периоде</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ rating.kpi.orders_with_complaints }}</div>
+            <div class="kpi-label">Заказов с жалобами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ '%.1f'|format(rating.kpi.complaint_rate) if rating.kpi.complaint_rate is not none else '—' }}</div>
+            <div class="kpi-label">% заказов с жалобами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ rating.kpi.complaints_count }}</div>
+            <div class="kpi-label">Всего жалоб</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ rating.kpi.complaints_registered }}</div>
+            <div class="kpi-label">Жалоб за период (дата обращения)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ rating.kpi.orders_without_date }}</div>
+            <div class="kpi-label">Без даты (не входят)</div>
+        </div>
+        <div class="kpi-card stat-card">
+            <div class="stat-number">{{ awaiting_photo }}</div>
+            <div class="stat-label">Ожидают фото</div>
+        </div>
+    </div>
+</div>
+
+{% if rating.is_current %}
+<div class="card" style="background: linear-gradient(135deg, rgba(255, 159, 10, 0.08), rgba(255, 159, 10, 0.02)); border-color: rgba(255, 159, 10, 0.25);">
+    <p class="help-text" style="margin: 0;">
+        ⚠️ Текущая неделя ещё не завершена — рейтинг предварительный, сравнение с полной прошлой неделей может вводить в заблуждение.
     </p>
-    {% if complaints %}
-    <div class="table-wrap">
-    <table class="table table-keep-actions">
+</div>
+{% endif %}
+
+<!-- Info about calculation -->
+<details class="card" style="margin-bottom: 16px;">
+    <summary style="cursor: pointer; font-weight: 600;">Как считается балл и что входит в период</summary>
+    <div class="help-text" style="margin-top: 12px; line-height: 1.6;">
+        <p style="margin-top: 0;">
+            <strong>Формула:</strong> балл = 100 − (процент заказов с жалобами × K),
+            ограниченный диапазоном 1–100. K = {{ rating.penalty_k }} — настраивается
+            (<code>RATING_PENALTY_PER_PERCENT</code>). Округление — только при отображении.
+            Пример: 4 заказа, 1 с жалобой → 25% → балл 75.0; 0% жалоб → 100;
+            100% жалоб → 0 → нижняя граница 1.
+        </p>
+        <p>
+            <strong>Процент заказов с жалобами</strong> = заказы с жалобами ÷ заказы периода × 100.
+            Если заказов за период нет — показывается «—», а не 0%.
+            Заказы считаются по одной строке на заказ: жалоба учитывается один раз,
+            даже если в ней несколько позиций.
+        </p>
+        <p>
+            <strong>Период</strong> — календарная неделя с понедельника, в UTC:
+            [Пн 00:00, Пн+7 00:00). Заказы учитываются по
+            {{ 'дате создания' if rating.date_source == 'created_at' else 'дате доставки' }};
+            заказы без распознанной даты в период не входят и показаны отдельной цифрой
+            «Без даты». Жалобы привязываются к заказу, а не к дате обращения
+            (дата обращения — отдельный показатель в KPI).
+        </p>
+        <p>
+            <strong>Минимальная выборка</strong> — {{ rating.min_orders }} заказов за неделю
+            (<code>RATING_MIN_ORDERS</code>): меньше — балла нет, курьер попадает в блок
+            «Недостаточно данных».
+        </p>
+        <p style="margin-bottom: 0;">
+            <strong>Место</strong> — по баллу (больше — лучше), при равенстве: меньше процент
+            жалоб, затем больше заказов. Полностью равные показатели делят одно место.
+            Предыдущая неделя считается той же формулой (понедельник − 7 дней).
+        </p>
+    </div>
+</details>
+
+{% if rating.rows %}
+<!-- Desktop Table -->
+<div class="table-wrap" style="display: none;" id="desktop-table">
+<table class="table">
+    <thead>
+        <tr>
+            <th>Место</th>
+            <th>{{ sort_link('fio', 'Курьер') }}</th>
+            <th>{{ sort_link('score', 'Балл') }}</th>
+            <th>{{ sort_link('orders', 'Заказов') }}</th>
+            <th>Заказов с жалобами</th>
+            <th>{{ sort_link('complaints', 'Жалоб') }}</th>
+            <th>{{ sort_link('rate', 'Заказов с жалобами, %') }}</th>
+            <th>К прошлой неделе</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in rating.rows %}
+        <tr>
+            <td><strong>{{ c.place }}</strong></td>
+            <td>
+                <a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}"><strong>{{ c.fio }}</strong></a>
+                {% if c.status == 'preliminary' %}
+                <br><small style="color: var(--warning);">{{ c.status_label }}</small>
+                {% elif c.status == 'insufficient' %}
+                <br><small style="color: var(--text-secondary);">{{ c.status_label }}</small>
+                {% endif %}
+            </td>
+            <td><strong>{{ '%.1f'|format(c.quality_score) }}</strong></td>
+            <td>{{ c.eligible_orders }}</td>
+            <td>{{ c.orders_with_complaints }}</td>
+            <td>{{ c.complaints_count }}</td>
+            <td>{{ '%.1f'|format(c.complaint_rate) if c.complaint_rate is not none else '—' }}</td>
+            <td>
+                <span class="direction-badge direction-{{ c.direction|lower|replace(' ', '-')|replace('недостаточно-данных-для-сравнения', 'unknown') }}">
+                    {{ c.direction }}
+                </span>
+                {% if c.deltas %}
+                <br><small style="color: var(--text-secondary);">
+                    балл {{ '%+.1f'|format(c.deltas.score) }},
+                    заказы {{ '%+d'|format(c.deltas.orders) }},
+                    жалобы {{ '%+d'|format(c.deltas.complaints) }}
+                    {% if c.deltas.rate is not none %}, % {{ '%+.1f'|format(c.deltas.rate) }}{% endif %}
+                </small>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Mobile Cards -->
+<div id="mobile-cards" style="display: flex; flex-direction: column; gap: 12px;">
+    {% for c in rating.rows %}
+    <a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}" class="courier-card" style="text-decoration: none; color: inherit;">
+        <div class="courier-card-header">
+            <div>
+                <strong style="font-size: 17px;">{{ c.fio }}</strong>
+                {% if c.status == 'preliminary' %}
+                <span class="badge badge-warning" style="margin-left: 8px; font-size: 10px;">{{ c.status_label }}</span>
+                {% elif c.status == 'insufficient' %}
+                <span class="badge" style="margin-left: 8px; font-size: 10px; background: var(--surface-3); color: var(--text-secondary);">{{ c.status_label }}</span>
+                {% endif %}
+            </div>
+            <div class="courier-score" style="text-align: right;">
+                <div style="font-size: 32px; font-weight: 700; color: var(--text); line-height: 1;">{{ '%.1f'|format(c.quality_score) }}</div>
+                <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Место {{ c.place }}</div>
+            </div>
+        </div>
+        <div class="courier-card-meta" style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light);">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Заказов</span>
+                <span style="font-weight: 600;">{{ c.eligible_orders }}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">С жалобами</span>
+                <span style="font-weight: 600;">{{ c.orders_with_complaints }}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Жалоб</span>
+                <span style="font-weight: 600;">{{ c.complaints_count }}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">% с жалобами</span>
+                <span style="font-weight: 600;">{{ '%.1f'|format(c.complaint_rate) if c.complaint_rate is not none else '—' }}</span>
+            </div>
+        </div>
+        {% if c.deltas %}
+        <div class="courier-card-delta" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+            <span class="direction-badge direction-{{ c.direction|lower|replace(' ', '-')|replace('недостаточно-данных-для-сравнения', 'unknown') }}" style="font-size: 11px; padding: 4px 8px;">{{ c.direction }}</span>
+            <small style="color: var(--text-secondary);">
+                балл {{ '%+.1f'|format(c.deltas.score) }},
+                заказы {{ '%+d'|format(c.deltas.orders) }},
+                жалобы {{ '%+d'|format(c.deltas.complaints) }}
+                {% if c.deltas.rate is not none %}, % {{ '%+.1f'|format(c.deltas.rate) }}{% endif %}
+            </small>
+        </div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет курьеров с достаточным количеством заказов за выбранный период.</div>
+    </div>
+</div>
+{% endif %}
+
+{% if rating.insufficient %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Недостаточно данных</h3>
+    <p class="help-text" style="margin-top: 0; margin-bottom: 12px;">
+        Для расчёта балла нужно не менее {{ rating.min_orders }} заказов за неделю.
+        Ниже — курьеры, у которых данных пока недостаточно: {{ rating.insufficient|length }}.
+        Отсутствие балла — не «ноль баллов» и не результат.
+    </p>
+
+    <!-- Mobile cards for insufficient -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for c in rating.insufficient %}
+        <a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}" class="courier-card" style="text-decoration: none; color: inherit; opacity: 0.7;">
+            <div class="courier-card-header">
+                <div>
+                    <strong style="font-size: 17px;">{{ c.fio }}</strong>
+                    <span class="badge" style="margin-left: 8px; font-size: 10px; background: var(--surface-3); color: var(--text-secondary);">{{ c.status_label }}</span>
+                </div>
+                <div style="text-align: right; color: var(--text-tertiary);">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">Без балла</div>
+                </div>
+            </div>
+            <div class="courier-card-meta" style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light);">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">В периоде</span>
+                    <span style="font-weight: 600;">{{ c.eligible_orders }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Без даты</span>
+                    <span style="font-weight: 600;">{{ c.orders_without_date }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">Всего</span>
+                    <span style="font-weight: 600;">{{ c.total_orders }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">С жалобами</span>
+                    <span style="font-weight: 600;">{{ c.orders_with_complaints }}</span>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Desktop table for insufficient -->
+    <div class="table-wrap" style="display: none; margin-top: 16px;" id="insufficient-table">
+    <table class="table">
         <thead>
             <tr>
-                <th>ФИО курьера</th>
-                <th>Адрес</th>
-                <th>Время</th>
-                <th>ID</th>
-                <th>Номер заказа</th>
-                <th>Действия</th>
+                <th>Курьер</th>
+                <th>Заказов в периоде</th>
+                <th>Без даты</th>
+                <th>Всего заказов</th>
+                <th>Заказов с жалобами</th>
+                <th>Статус</th>
             </tr>
         </thead>
         <tbody>
-            {% for c in complaints %}
+            {% for c in rating.insufficient %}
             <tr>
-                <td>
-                    <strong>{{ c.courier }}</strong>
-                    <br><small style="color: var(--text-secondary);">{{ c.complaint_text[:80] }}{% if c.complaint_text|length > 80 %}…{% endif %}</small>
-                </td>
-                <td>{{ c.address }}</td>
-                <td>{{ c.delivered_at }}</td>
-                <td><code>{{ c.external_id }}</code></td>
-                <td>{{ c.order_number }}</td>
-                <td>
-                    {% if c.photo_required %}
-                    <a href="{{ url_for('admin.order_photos', order_id=c.order_id) }}" class="btn btn-sm btn-primary">
-                        📷 {% if c.has_photos %}Фото{% else %}Запросить фото{% endif %}
-                    </a>
-                    {% else %}
-                    —
-                    {% endif %}
-                </td>
+                <td><a href="{{ url_for('admin.courier_detail', fio=c.fio, week=week_param) }}"><strong>{{ c.fio }}</strong></a></td>
+                <td>{{ c.eligible_orders }}</td>
+                <td>{{ c.orders_without_date }}</td>
+                <td>{{ c.total_orders }}</td>
+                <td>{{ c.orders_with_complaints }}</td>
+                <td>{{ c.status_label }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-</div>
-    <p class="help-text" style="margin-top: 8px;">
-        Для каждого заказа с жалобой показан курьер (столбец «Курьер»), адрес, время доставки, ID и номер заказа.
-        Загружено заказов: {{ complaints|length }}.
-    </p>
-    {% else %}
-    <div class="empty-state" style="padding: 24px;">
-        <div class="empty-state-icon" style="width: 48px; height: 48px; margin-bottom: 12px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-        </div>
-        <div class="empty-state-title">Жалоб нет</div>
-        <div class="empty-state-text">Импортируйте файл жалоб — здесь появятся курьеры по каждому заказу.</div>
     </div>
-    {% endif %}
 </div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет данных для расчёта рейтинга.</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    // Toggle table/cards view based on screen width
+    function updateView() {
+        var isMobile = window.matchMedia('(max-width: 768px)').matches;
+        var desktopTable = document.getElementById('desktop-table');
+        var mobileCards = document.getElementById('mobile-cards');
+        var insufficientTable = document.getElementById('insufficient-table');
+
+        if (desktopTable) desktopTable.style.display = isMobile ? 'none' : 'block';
+        if (mobileCards) mobileCards.style.display = isMobile ? 'flex' : 'none';
+        if (insufficientTable) insufficientTable.style.display = isMobile ? 'none' : 'block';
+    }
+
+    if (window.matchMedia) {
+        var media = window.matchMedia('(max-width: 768px)');
+        updateView();
+        if (media.addEventListener) media.addEventListener('change', updateView);
+        else if (media.addListener) media.addListener(updateView);
+    } else {
+        updateView();
+    }
+
+    // Re-apply on mutations (e.g., after search)
+    if (window.MutationObserver) {
+        new MutationObserver(function () { updateView(); }).observe(document.body, { childList: true, subtree: true });
+    }
+})();
+</script>
 {% endblock %}

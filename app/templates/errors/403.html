@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Доступ запрещён{% endblock %}
+
+{% block content %}
+<div class="empty-state" style="margin-top: 80px;">
+    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </svg>
+    <div class="empty-state-title">403 — Доступ запрещён</div>
+    <div class="empty-state-text">У вашей роли нет прав для этого действия.</div>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary" style="margin-top: 24px;">На главную</a>
+</div>
+{% endblock %}

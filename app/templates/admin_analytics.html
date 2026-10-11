@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Аналитика жалоб{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+
+<div class="page-header">
+    <h1>Аналитика жалоб</h1>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 16px;">
+    <form method="get" class="period-selector" style="gap: 12px; flex-wrap: wrap;">
+        <!-- Period preset -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <label style="font-size: 13px; color: var(--text-secondary); white-space: nowrap;">Период:</label>
+            {% for p, label in [("today", "Сегодня"), ("week", "Неделя"), ("month", "Месяц"), ("custom", "Свой")] %}
+            <a href="{{ url_for('admin.analytics', period=p, date_from=date_from, date_to=date_to, courier=courier, status=status, search=search) }}"
+               class="period-btn{% if period == p %} is-active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+
+        <!-- Custom date range -->
+        <details class="period-custom" style="{% if period != 'custom' %}display: none;{% endif %}">
+            <summary class="period-btn">Свой период</summary>
+            <div class="period-form" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-light); width: 100%;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 12px; color: var(--text-secondary);">От</label>
+                    <input type="date" name="date_from" value="{{ date_from }}"
+                           style="padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label style="font-size: 12px; color: var(--text-secondary);">До</label>
+                    <input type="date" name="date_to" value="{{ date_to }}"
+                           style="padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px;">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" style="min-height: 44px;">Применить</button>
+                <a href="{{ url_for('admin.analytics') }}" class="btn btn-sm btn-secondary" style="min-height: 44px;">Сбросить</a>
+            </div>
+        </details>
+
+        <!-- Courier filter -->
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 180px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Курьер</label>
+            <select name="courier" style="padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px; background: var(--card-bg);">
+                <option value="">Все курьеры</option>
+                {% for c, count in filter_options.couriers %}
+                <option value="{{ c }}" {% if courier == c %}selected{% endif %}>{{ c }} ({{ count }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Status filter -->
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 160px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Статус</label>
+            <select name="status" style="padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px; background: var(--card-bg);">
+                <option value="">Все статусы</option>
+                {% for s, l, c in filter_options.statuses %}
+                <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ l }} ({{ c }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Search -->
+        <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px;">
+            <label style="font-size: 12px; color: var(--text-secondary);">Поиск</label>
+            <input type="search" name="search" value="{{ search }}" placeholder="Номер заказа, текст жалобы, ФИО"
+                   style="padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: 15px;">
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: flex-end;">
+            <button type="submit" class="btn btn-primary" style="min-height: 44px;">Применить</button>
+            <a href="{{ url_for('admin.analytics') }}" class="btn btn-secondary" style="min-height: 44px;">Сбросить всё</a>
+        </div>
+    </form>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Сводка за период</h2>
+    <div class="kpi-grid" style="margin-bottom: 0;">
+        <div class="kpi-card">
+            <div class="kpi-value">{{ trends_data.total_complaints }}</div>
+            <div class="kpi-label">Всего жалоб (строк)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ reasons_data.total_orders_with_complaints }}</div>
+            <div class="kpi-label">Заказов с жалобами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ trends_data.total_orders }}</div>
+            <div class="kpi-label">Всего заказов</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ '%.1f'|format((trends_data.total_complaints / trends_data.total_orders * 100) if trends_data.total_orders > 0 else 0) }}</div>
+            <div class="kpi-label">Доля жалоб, %</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ reasons_data.top_reasons|length }}</div>
+            <div class="kpi-label">Уникальных причин</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier_stats|length }}</div>
+            <div class="kpi-label">Курьеров с жалобами</div>
+        </div>
+    </div>
+</div>
+
+<!-- Trends Chart -->
+{% if trends_data.daily_trends %}
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Динамика по дням</h2>
+    <p class="help-text" style="margin-bottom: 12px;">
+        Синие столбцы — количество жалоб, серые — заказы, линия — доля жалоб (%).
+        Рост жалоб при стабильном объёме заказов → ухудшение качества.
+    </p>
+
+    <!-- SVG Chart -->
+    <div style="height: 280px; position: relative;">
+        {% set trends = trends_data.daily_trends %}
+        {% set max_complaints = trends|map(attribute='complaints')|max if trends else 1 %}
+        {% set max_orders = trends|map(attribute='orders')|max if trends else 1 %}
+        {% set max_val = max(max_complaints, max_orders, 1) %}
+        {% set chart_width = trends|length * 60 %}
+        {% set chart_height = 200 %}
+        {% set padding_top = 40 %}
+        {% set padding_bottom = 40 %}
+        {% set padding_left = 50 %}
+        {% set padding_right = 20 %}
+
+        <svg viewBox="0 0 {{ chart_width + padding_left + padding_right }} {{ chart_height + padding_top + padding_bottom }}" style="width: 100%; height: 100%; display: block; overflow: visible;">
+            <!-- Y Axis Labels (complaints/orders) -->
+            <g font-size="11" fill="var(--text-tertiary)">
+                {% for i in range(5) %}
+                {% set y = padding_top + (i * chart_height / 4) %}
+                {% set val = max_val - (i * max_val / 4) %}
+                <line x1="{{ padding_left - 5 }}" y1="{{ y }}" x2="{{ padding_left }}" y2="{{ y }}" stroke="var(--border-light)" stroke-width="1"/>
+                <text x="{{ padding_left - 8 }}" y="{{ y + 4 }}" text-anchor="end">{{ '%.0f'|format(val) }}</text>
+                {% endfor %}
+            </g>
+
+            <!-- Y Axis Label Rate (right) -->
+            <g font-size="11" fill="var(--text-tertiary)">
+                {% for i in range(5) %}
+                {% set y = padding_top + (i * chart_height / 4) %}
+                {% set val = 100 - (i * 25) %}
+                <text x="{{ padding_left + chart_width + 50 }}" y="{{ y + 4 }}" text-anchor="start">{{ val }}%</text>
+                {% endfor %}
+            </g>
+
+            <!-- Grid lines -->
+            <g stroke="var(--border-light)" stroke-width="1">
+                {% for i in range(5) %}
+                {% set y = padding_top + (i * chart_height / 4) %}
+                <line x1="{{ padding_left }}" y1="{{ y }}" x2="{{ padding_left + chart_width }}" y2="{{ y }}"/>
+                {% endfor %}
+            </g>
+
+            <!-- Bars: Orders (background) -->
+            <g fill="var(--surface-3)" opacity="0.5">
+                {% for trend in trends %}
+                {% set x = padding_left + loop.index0 * 60 + 10 %}
+                {% set bar_height = (trend.orders / max_val * chart_height) if max_val > 0 else 0 %}
+                {% set y = padding_top + chart_height - bar_height %}
+                <rect x="{{ x }}" y="{{ y }}" width="18" height="{{ bar_height }}" rx="2"/>
+                {% endfor %}
+            </g>
+
+            <!-- Bars: Complaints -->
+            <g fill="var(--danger)">
+                {% for trend in trends %}
+                {% set x = padding_left + loop.index0 * 60 + 10 %}
+                {% set bar_height = (trend.complaints / max_val * chart_height) if max_val > 0 else 0 %}
+                {% set y = padding_top + chart_height - bar_height %}
+                <rect x="{{ x }}" y="{{ y }}" width="18" height="{{ bar_height }}" rx="2"/>
+                {% endfor %}
+            </g>
+
+            <!-- Line: Complaint Rate -->
+            <polyline fill="none" stroke="var(--primary)" stroke-width="2.5" points="
+                {% for trend in trends %}
+                {% set x = padding_left + loop.index0 * 60 + 19 %}
+                {% set y = padding_top + chart_height - (trend.rate / 100 * chart_height) %}
+                {{ x }},{{ y }}
+                {% endfor %}
+            "/>
+
+            <!-- Rate points -->
+            <g fill="var(--primary)">
+                {% for trend in trends %}
+                {% set x = padding_left + loop.index0 * 60 + 19 %}
+                {% set y = padding_top + chart_height - (trend.rate / 100 * chart_height) %}
+                <circle cx="{{ x }}" cy="{{ y }}" r="4"/>
+                {% endfor %}
+            </g>
+
+            <!-- X Axis Labels -->
+            <g font-size="11" fill="var(--text-secondary)" text-anchor="middle">
+                {% for trend in trends %}
+                {% set x = padding_left + loop.index0 * 60 + 19 %}
+                {% set day_parts = trend.day.split('-') %}
+                <text x="{{ x }}" y="{{ padding_top + chart_height + 20 }}" transform="rotate(-45, {{ x }}, {{ padding_top + chart_height + 20 }})">{{ day_parts[2] if day_parts|length == 3 else trend.day }}.{{ day_parts[1] if day_parts|length >= 2 else '' }}</text>
+                {% endfor %}
+            </g>
+
+            <!-- Legend -->
+            <g font-size="12" transform="translate({{ padding_left }}, {{ padding_top - 30 }})">
+                <rect x="0" y="0" width="14" height="14" rx="3" fill="var(--danger)"/>
+                <text x="20" y="11" fill="var(--text)">Жалобы</text>
+                <rect x="90" y="0" width="14" height="14" rx="3" fill="var(--surface-3)" opacity="0.5"/>
+                <text x="110" y="11" fill="var(--text)">Заказы</text>
+                <circle cx="210" cy="7" r="5" fill="var(--primary)"/>
+                <text x="220" y="11" fill="var(--text)">Доля, %</text>
+            </g>
+        </svg>
+    </div>
+
+    <!-- Trends Table -->
+    <div class="table-wrap" style="margin-top: 16px;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Жалобы</th>
+                    <th>Заказы</th>
+                    <th>Доля, %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trend in trends_data.daily_trends|reverse %}
+                <tr>
+                    <td>{{ trend.day }}</td>
+                    <td><strong>{{ trend.complaints }}</strong></td>
+                    <td>{{ trend.orders }}</td>
+                    <td>{{ '%.1f'|format(trend.rate) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет данных о жалобах за выбранный период.</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Top Reasons -->
+{% if reasons_data.top_reasons %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <h2 style="margin: 0;">Топ причин жалоб</h2>
+        <span class="help-text">Всего уникальных причин: {{ reasons_data.top_reasons|length }}</span>
+    </div>
+
+    <!-- Photo-required topics breakdown -->
+    {% if reasons_data.photo_required_breakdown %}
+    <h3 style="font-size: 15px; font-weight: 600; margin: 16px 0 8px; color: var(--text-secondary);">Темы, требующие фото</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+        {% for topic, count in reasons_data.photo_required_breakdown %}
+        <a href="{{ url_for('admin.complaints', search=topic, period=period, date_from=date_from, date_to=date_to, courier=courier, status=status) }}"
+           class="attention-card is-warning" style="flex: 1; min-width: 160px; min-height: auto; padding: 12px 16px; text-decoration: none; color: inherit;">
+            <div class="attention-number">{{ count }}</div>
+            <div class="attention-label" style="font-size: 13px; white-space: normal;">{{ topic }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- All reasons table -->
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Причина</th>
+                    <th>Кол-во</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reason, count in reasons_data.top_reasons[:30] %}
+                <tr>
+                    <td style="max-width: 400px;">{{ reason }}</td>
+                    <td><strong>{{ count }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('admin.complaints', search=reason, period=period, date_from=date_from, date_to=date_to, courier=courier, status=status) }}"
+                           class="btn btn-sm btn-secondary">Открыть жалобы</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет данных о причинах жалоб за выбранный период.</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Courier Stats -->
+{% if courier_stats %}
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Курьеры: жалобы и доля</h2>
+    <p class="help-text" style="margin-bottom: 12px;">
+        Сортировка по доле жалоб (относительный показатель). При равенстве — больше заказов выше.
+        Абсолютное число жалоб без учёта объёма заказов не показывает качество.
+    </p>
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Курьер</th>
+                    <th>Заказов</th>
+                    <th>Жалоб</th>
+                    <th>Доля, %</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in courier_stats %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('admin.courier_detail', fio=c.courier, week=trends_data.daily_trends[-1].day if trends_data.daily_trends else '') }}" style="font-weight: 600;">{{ c.courier }}</a>
+                    </td>
+                    <td>{{ c.orders_count }}</td>
+                    <td>{{ c.complaints_count }}</td>
+                    <td><strong>{{ '%.1f'|format(c.complaint_rate) }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('admin.complaints', courier=c.courier, period=period, date_from=date_from, date_to=date_to, status=status) }}"
+                           class="btn btn-sm btn-secondary">Жалобы курьера</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 32px;">
+        <div class="empty-state-text">Нет данных по курьерам за выбранный период.</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Status Breakdown -->
+{% if status_breakdown %}
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Распределение по статусам</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        {% for s in status_breakdown %}
+        <a href="{{ url_for('admin.complaints', status=s.status, period=period, date_from=date_from, date_to=date_to, courier=courier, search=search) }}"
+           class="stat-card" style="text-decoration: none; color: inherit; flex: 1; min-width: 140px;">
+            <div class="stat-number" style="color: {% if s.status == 'закрыта' %}var(--success){% elif s.status == 'в работе' %}var(--warning){% elif s.status == 'открыта' %}var(--danger){% else %}var(--text-secondary){% endif %};">{{ s.count }}</div>
+            <div class="stat-label">{{ s.label }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Photo Topic Breakdown -->
+{% if photo_breakdown %}
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Темы, требующие фото-подтверждения</h2>
+    <p class="help-text" style="margin-bottom: 12px;">
+        Показывает, на какие подтемы приходятся жалобы, требующие фото от курьера.
+        Клик — переход к списку жалоб с фильтром по теме.
+    </p>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        {% for item in photo_breakdown %}
+        <a href="{{ url_for('admin.complaints', search=item.topic, period=period, date_from=date_from, date_to=date_to, courier=courier, status=status) }}"
+           class="attention-card {% if item.topic != 'Другое' %}is-warning{% else %}is-ok{% endif %}"
+           style="flex: 1; min-width: 160px; min-height: auto; padding: 16px; text-decoration: none; color: inherit;">
+            <div class="attention-number" style="color: {% if item.topic != 'Другое' %}var(--warning){% else %}var(--success){% endif %};">{{ item.count }}</div>
+            <div class="attention-label" style="font-size: 13px; white-space: normal;">{{ item.topic }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Methodology Note -->
+<details class="card" style="margin-top: 16px;">
+    <summary style="cursor: pointer; font-weight: 600;">Методология и определения</summary>
+    <div class="help-text" style="margin-top: 12px; line-height: 1.6;">
+        <p style="margin-top: 0;"><strong>Источники данных:</strong> таблица <code>Complaint</code> (каждая строка — одна причина жалобы) + зеркало <code>Order.complaint_text</code> (разделяется по «; » для легаси-данных).</p>
+        <p><strong>Жалоба vs Заказ с жалобой:</strong> одна жалоба = одна строка Complaint; один заказ может иметь несколько жалоб. Метрика «Заказов с жалобами» считает уникальные заказы.</p>
+        <p><strong>Доля жалоб (%):</strong> жалобы ÷ заказы × 100 за тот же день/период. Позволяет отделить рост жалоб от роста объёма.</p>
+        <p><strong>Причины:</strong> текст жалобы разбивается по разделителю «; ». Известные темы (фото-требуемые) выделяются отдельно; остальные группируются как есть.</p>
+        <p><strong>Фильтры:</strong> применяются ко всем агрегациям одновременно. Период — по дате создания жалобы (<code>Complaint.created_at</code>), а не заказа.</p>
+        <p style="margin-bottom: 0;"><strong>Ограничения:</strong> корреляция ≠ причинность. Аналитика показывает совпадения; выводы делает руководитель.</p>
+    </div>
+</details>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-submit custom date range when both dates filled
+document.querySelectorAll('.period-custom input[type="date"]').forEach(function(input) {
+    input.addEventListener('change', function() {
+        var form = this.closest('form');
+        var from = form.querySelector('input[name="date_from"]');
+        var to = form.querySelector('input[name="date_to"]');
+        if (from && to && from.value && to.value) {
+            // Don't auto-submit, let user press "Применить"
+        }
+    });
+});
+
+// Close custom period details when clicking outside
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('.period-custom[open]').forEach(function(details) {
+        if (!details.contains(e.target)) details.removeAttribute('open');
+    });
+});
+</script>
+{% endblock %} 
+ 

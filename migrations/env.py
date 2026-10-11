@@ -10,7 +10,13 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+#
+# disable_existing_loggers=False — обязательно: при значении True (по умолчанию)
+# fileConfig выключает ВСЕ уже созданные логгеры приложения (app.logger,
+# gl_jb.audit). Так как env.py выполняется ПОСЛЕ настройки логирования в
+# create_app(), в проде после миграций переставало писаться всё,
+# включая logs/app.log.
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 logger = logging.getLogger('alembic.env')
 
 

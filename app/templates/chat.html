@@ -9,7 +9,7 @@
 </header>
 
 {% if is_admin %}
-<div class="card">
+<div class="card chat-compose">
     <h2>Новое сообщение</h2>
     <p class="help-text" style="margin-top: 0;">Сообщение увидят все курьеры и сборщики.</p>
     <form method="post">
@@ -18,7 +18,7 @@
             <label for="message-text">Текст сообщения</label>
             <textarea id="message-text" name="text" rows="4" required></textarea>
         </div>
-        <button type="submit" class="btn btn-primary">Опубликовать</button>
+        <button type="submit" class="btn btn-primary chat-publish-btn">Опубликовать</button>
     </form>
 </div>
 {% else %}
@@ -28,21 +28,18 @@
 <div class="card">
     <h2>Сообщения</h2>
     {% if messages %}
-    <div class="activity-list">
+    <div class="chat-list">
         {% for m in messages %}
-        <div class="activity-item">
-            <div class="activity-icon">📢</div>
-            <div class="activity-body">
-                <div class="activity-meta">Администратор · {{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '—' }}</div>
-                <div class="activity-title" style="font-weight: 400; white-space: pre-wrap;">{{ m.text }}</div>
-            </div>
+        <article class="chat-bubble">
+            <div class="chat-meta">Администратор · {{ m.created_at.strftime('%d.%m.%Y %H:%M') if m.created_at else '—' }}</div>
+            <div class="chat-text">{{ m.text }}</div>
             {% if is_admin %}
-            <form method="post" action="{{ url_for('user.delete_message', message_id=m.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить сообщение?', event)">
+            <form method="post" action="{{ url_for('user.delete_message', message_id=m.id) }}" class="d-inline chat-delete-form" onsubmit="return confirmDelete(this, 'Удалить сообщение?', event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                <button type="submit" class="btn btn-danger btn-sm chat-delete-btn">Удалить</button>
             </form>
             {% endif %}
-        </div>
+        </article>
         {% endfor %}
     </div>
     {% else %}

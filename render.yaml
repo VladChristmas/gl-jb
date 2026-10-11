@@ -23,9 +23,18 @@ services:
       - key: MAX_CONTENT_LENGTH
         value: "16777216"
       - key: RATELIMIT_STORAGE_URL
-        value: memory://
+        value: redis://redis:6379/0
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeploy: false
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+
+  - type: redis
+    name: redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
 
 databases:
   - name: gl-jb-db

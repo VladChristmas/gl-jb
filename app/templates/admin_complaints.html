@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Жалобы{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Жалобы</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+<form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+    <input type="hidden" name="status" value="{{ status }}">
+    <div class="form-group" style="min-width: 150px; width: 100%; max-width: 100%;">
+        <label for="search">Поиск</label>
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или текст жалобы" autocomplete="off">
+    </div>
+    <div class="form-group" style="min-width: 140px; width: 100%; max-width: 100%;">
+        <label for="status_select">Статус</label>
+        <select id="status_select" name="status" onchange="this.form.submit();">
+            <option value="" {% if status == '' %}selected{% endif %}>Все статусы</option>
+            {% for value, label, count in status_choices %}
+            <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }} ({{ count }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 140px; width: 100%; max-width: 100%;">
+        <label for="courier">Курьер</label>
+        <select id="courier" name="courier">
+            <option value="">Все курьеры</option>
+            {% for c in courier_choices %}
+            <option value="{{ c }}" {% if courier|lower == c|lower %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 120px; width: 100%; max-width: 100%;">
+        <label for="date_from">Период с</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="form-group" style="min-width: 120px; width: 100%; max-width: 100%;">
+        <label for="date_to">по</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+    </div>
+    <button type="submit" class="btn btn-secondary">Фильтровать</button>
+    <span class="form-group" style="display: flex; gap: 6px;">
+        <a href="{{ url_for('admin.complaints', period='day', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}active{% endif %}">День</a>
+        <a href="{{ url_for('admin.complaints', period='week', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}active{% endif %}">Неделя</a>
+        <a href="{{ url_for('admin.complaints', period='month', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}active{% endif %}">Месяц</a>
+    </span>
+    {% if search or status or courier or date_from or date_to or period %}
+    <a href="{{ url_for('admin.complaints') }}" class="btn btn-secondary">Сбросить</a>
+    {% endif %}
+    <a href="{{ url_for('admin.export_complaints_excel', search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary" title="Скачать текущую выборку в Excel">⬇ Экспорт</a>
+</form>
+
+<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+    <strong>Жалоб по текущему фильтру:</strong> {{ total_complaints }}
+    {% if mirror_only_count %}
+    &nbsp;·&nbsp;
+    <a href="{{ url_for('admin.orders', complaint_filter='with_complaints') }}"
+       title="Заказы, у которых жалобы записаны только в зеркало Order.complaint_* (легаси-данные): строки Complaint появятся при следующем импорте.">
+        Заказов с жалобами (включая легаси): {{ mirror_only_count }}
+    </a>
+    {% endif %}
+</div>
+
+{% if courier_top %}
+<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+    <strong>Топ курьеров по жалобам</strong>
+    <small style="color: var(--text-secondary);"> (за текущий период, только отображение)</small>
+    <div class="table-wrap" style="margin-top: 8px;">
+    <table class="table">
+        <thead>
+            <tr><th>Курьер</th><th>Жалоб</th></tr>
+        </thead>
+        <tbody>
+            {% for courier_fio, count in courier_top %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('admin.complaints', courier=courier_fio, search=search, status=status, date_from=date_from, date_to=date_to, period=period) }}">{{ courier_fio }}</a>
+                </td>
+                <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+{% endif %}
+
+<div class="complaints-list">
+    {% for row in rows %}
+    <article class="complaint-card" data-complaint-id="{{ row.complaint.id }}">
+        <header class="complaint-header">
+            <div class="complaint-id">
+                <span class="label">Жалоба</span>
+                <a href="{{ url_for('admin.complaint_detail', complaint_id=row.complaint.id) }}" class="complaint-link">#{{ row.complaint.id }}</a>
+            </div>
+            <div class="complaint-status">
+                {% if row.complaint.status %}
+                <span class="badge
+                    {%- if row.complaint.status == 'открыта' %} badge-danger
+                    {%- elif row.complaint.status == 'в работе' %} badge-warning
+                    {%- elif row.complaint.status == 'закрыта' %} badge-success
+                    {%- endif %}">{{ row.complaint.status }}</span>
+                {% else %}
+                <span class="badge badge-secondary">—</span>
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="complaint-body">
+            <div class="complaint-order">
+                <span class="label">Заказ</span>
+                <a href="{{ url_for('admin.edit_order', order_id=row.order.id) }}" class="order-link">
+                    <strong>{{ row.order.order_number or '#' ~ row.order.id }}</strong>
+                    <small>{{ row.user.fio }}</small>
+                </a>
+            </div>
+
+            <div class="complaint-text">
+                <span class="label">Жалоба</span>
+                <p>{{ row.complaint.text }}</p>
+            </div>
+
+            <div class="complaint-meta">
+                <div class="meta-item">
+                    <span class="label">Дата</span>
+                    <span class="value">{{ row.complaint.created_at.strftime('%d.%m.%Y %H:%M') if row.complaint.created_at else '—' }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="label">Курьер</span>
+                    <span class="value">{{ row.order.courier_fio or '—' }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="label">Фото</span>
+                    <span class="value">
+                        {% if row.photos_count > 0 %}
+                        <span class="badge badge-success">{{ row.photos_count }} фото</span>
+                        {% elif row.photo_required %}
+                        <span class="badge badge-warning">ждём фото</span>
+                        {% else %}
+                        <span class="badge badge-secondary">—</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <footer class="complaint-actions">
+            <a href="{{ url_for('admin.complaint_detail', complaint_id=row.complaint.id) }}" class="btn btn-sm btn-primary">Открыть</a>
+            <a href="{{ url_for('admin.edit_order', order_id=row.order.id) }}" class="btn btn-sm btn-secondary">Заказ</a>
+            {% if row.photos_count > 0 %}
+            <a href="{{ url_for('admin.order_photos', order_id=row.order.id) }}" class="btn btn-sm btn-secondary">Фото</a>
+            {% endif %}
+        </footer>
+    </article>
+    {% else %}
+    <div class="empty-state" style="padding: 2rem; text-align: center;">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 64px; height: 64px; margin-bottom: 1rem; color: var(--text-secondary);">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <div class="empty-state-title">Жалоб нет</div>
+        <div class="empty-state-text">Нет жалоб, подходящих под текущие фильтры. Измените фильтры или нажмите «Сбросить».</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if pagination.pages > 1 %}
+<nav class="pagination">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('admin.complaints', page=pagination.prev_num, search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary btn-sm">← Назад</a>
+    {% endif %}
+    <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+        <a href="{{ url_for('admin.complaints', page=pagination.next_num, search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+enableLiveSearch('search');
+</script>
+{% endblock %}

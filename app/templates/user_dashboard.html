@@ -5,10 +5,10 @@
 {% block content %}
 <header class="page-header">
     <div>
-        <h1>Привет, {{ session.user_fio }}</h1>
+        <h1 class="dashboard-greeting">Привет, {{ session.user_fio }}</h1>
         <p class="subtitle" style="margin-bottom: 0; text-align: left;">{{ "Нет заказов, ожидающих фото — отличная работа!" if stats.all_perfect else "Есть заказы, ожидающие фото" }}</p>
     </div>
-    <div class="user-info">
+    <div class="user-info dashboard-header-actions">
         {% if user %}<span class="badge badge-primary">{{ role_labels.get(user.role, user.role) }}</span>{% endif %}
         <a href="{{ url_for('user.chat') }}" class="btn btn-secondary">💬 Чат</a>
         <a href="{{ url_for('user.orders') }}" class="btn btn-primary">Мои заказы</a>
@@ -32,22 +32,23 @@
         <div class="hero-title">{{ stats.pending }} {{ 'заказ ждёт' if stats.pending == 1 else 'заказа ждут' }} фото</div>
         <div class="hero-text">Загрузите фото-подтверждение по заказам с жалобами.</div>
     </div>
-    <a href="{{ url_for('user.orders') }}" class="btn btn-primary">Загрузить фото</a>
+    {# §4: кнопка ведёт на список с тем же фильтром, что и счётчик #}
+    <a href="{{ url_for('user.orders', photo='pending') }}" class="btn btn-primary">Загрузить фото</a>
 </div>
 {% endif %}
 
-<!-- Stats -->
+<!-- Stats: кликабельные показатели → списки с фильтрами (§4) -->
 <div class="stats-grid">
-    <div class="stat-card">
+    <a href="{{ url_for('user.orders') }}" class="kpi-card kpi-card-link">
         <div class="stat-number">{{ stats.confirmed }}</div>
         <div class="stat-label">Подтверждено</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ url_for('user.orders', photo='pending') }}" class="kpi-card kpi-card-link">
         <div class="stat-number" style="color: {% if stats.pending > 0 %}var(--warning){% else %}var(--success){% endif %};">
             {{ stats.pending }}
         </div>
         <div class="stat-label">Ожидает фото</div>
-    </div>
+    </a>
     <div class="stat-card">
         <div class="stat-number">{{ stats.streak }}</div>
         <div class="stat-label">Серия подряд</div>

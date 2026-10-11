@@ -9,6 +9,7 @@
 </header>
 
 <form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+    <input type="hidden" name="period" value="{{ period }}">
     <div class="form-group" style="min-width: 250px;">
         <label for="search">Поиск</label>
         <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа, описание, ФИО" autocomplete="off">
@@ -22,19 +23,58 @@
             {% endfor %}
         </select>
     </div>
+    <div class="form-group" style="min-width: 200px;">
+        <label for="courier">Курьер</label>
+        <select id="courier" name="courier">
+            <option value="">Все курьеры</option>
+            {% for c in courier_choices %}
+            <option value="{{ c }}" {% if courier|lower == c|lower %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
     <div class="form-group" style="min-width: 180px;">
         <label for="photo_filter">Статус фото</label>
         <select id="photo_filter" name="photo_filter">
-            <option value="">С фото и ждущие фото</option>
+            <option value="" {% if photo_filter == '' %}selected{% endif %}>Все заказы</option>
             <option value="with_photos" {% if photo_filter == 'with_photos' %}selected{% endif %}>✅ С фото (подтверждены)</option>
             <option value="without_photos" {% if photo_filter == 'without_photos' %}selected{% endif %}>⏳ Ожидают фото</option>
+            <option value="photo_relevant" {% if photo_filter == 'photo_relevant' %}selected{% endif %}>С фото и ждущие фото</option>
         </select>
     </div>
+    <div class="form-group" style="min-width: 180px;">
+        <label for="complaint_filter">Жалобы</label>
+        <select id="complaint_filter" name="complaint_filter">
+            <option value="" {% if complaint_filter == '' %}selected{% endif %}>Все заказы</option>
+            <option value="with_complaints" {% if complaint_filter == 'with_complaints' %}selected{% endif %}>С жалобами</option>
+            <option value="without_complaints" {% if complaint_filter == 'without_complaints' %}selected{% endif %}>Без жалоб</option>
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 150px;">
+        <label for="date_from">Период с</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="form-group" style="min-width: 150px;">
+        <label for="date_to">по</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+    </div>
     <button type="submit" class="btn btn-secondary">Фильтровать</button>
-    {% if search or user_filter or photo_filter %}
+    <span class="form-group" style="display: flex; gap: 6px;">
+        <a href="{{ url_for('admin.orders', period='day', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}active{% endif %}">День</a>
+        <a href="{{ url_for('admin.orders', period='week', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}active{% endif %}">Неделя</a>
+        <a href="{{ url_for('admin.orders', period='month', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}active{% endif %}">Месяц</a>
+    </span>
+    {% if search or user_filter or photo_filter or date_from or date_to or period or courier or complaint_filter %}
     <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Сбросить</a>
     {% endif %}
+    <a href="{{ url_for('admin.export_excel', search=search, user_id=user_filter, photo_filter=photo_filter, date_from=date_from, date_to=date_to, period=period, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary" title="Скачать текущую выборку в Excel">⬇ Экспорт</a>
 </form>
+
+<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+    <strong>Заказов по текущему фильтру:</strong> {{ pagination.total }}
+    {% if pagination.total != total_orders %}
+    &nbsp;·&nbsp; <strong>Всего заказов в системе:</strong> {{ total_orders }}
+    {% endif %}
+</div>
 
 <div class="table-wrap">
     <table class="table">
@@ -110,7 +150,7 @@
                         <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
                     <div class="empty-state-title">Заказов нет</div>
-                    <div class="empty-state-text">Показываются заказы с фото или ожидающие фото-подтверждения. Измените фильтры.</div>
+                    <div class="empty-state-text">Нет заказов, подходящих под текущие фильтры. Измените фильтры или нажмите «Сбросить».</div>
                 </div>
             </td>
         </tr>
@@ -122,11 +162,11 @@
 {% if pagination.pages > 1 %}
 <nav class="pagination">
     {% if pagination.has_prev %}
-        <a href="{{ url_for('admin.orders', page=pagination.prev_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">← Назад</a>
+        <a href="{{ url_for('admin.orders', page=pagination.prev_num, search=search, user_id=user_filter, photo_filter=photo_filter, date_from=date_from, date_to=date_to, period=period, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm">← Назад</a>
     {% endif %}
     <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
     {% if pagination.has_next %}
-        <a href="{{ url_for('admin.orders', page=pagination.next_num, search=search, user_id=user_filter, photo_filter=photo_filter) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+        <a href="{{ url_for('admin.orders', page=pagination.next_num, search=search, user_id=user_filter, photo_filter=photo_filter, date_from=date_from, date_to=date_to, period=period, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
     {% endif %}
 </nav>
 {% endif %}

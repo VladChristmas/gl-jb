@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}История изменений (аудит){% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>История изменений</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад</a>
+</header>
+
+<!-- Stats Summary -->
+<div class="stats-grid stats-grid-2" style="margin-bottom: var(--spacing-lg);">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total }}</div>
+        <div class="stat-label">Всего записей</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.by_action|length + stats.by_object|length }}</div>
+        <div class="stat-label">Типов действий / объектов</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="form-inline" style="margin-bottom: 1rem; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+    <div class="form-group" style="min-width: 180px;">
+        <label for="action_type">Тип действия</label>
+        <select id="action_type" name="action_type" style="max-width: 100%;">
+            <option value="">Все</option>
+            {% for at in filter_options.action_types %}
+            <option value="{{ at }}" {% if at == action_type %}selected{% endif %}>{{ at }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 180px;">
+        <label for="object_type">Тип объекта</label>
+        <select id="object_type" name="object_type" style="max-width: 100%;">
+            <option value="">Все</option>
+            {% for ot in filter_options.object_types %}
+            <option value="{{ ot }}" {% if ot == object_type %}selected{% endif %}>{{ ot }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 180px;">
+        <label for="user_id">Пользователь</label>
+        <select id="user_id" name="user_id" style="max-width: 100%;">
+            <option value="">Все</option>
+            {% for uid, ufio in filter_options.users %}
+            <option value="{{ uid }}" {% if uid|string == user_id %}selected{% endif %}>{{ ufio }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group" style="min-width: 200px;">
+        <label for="object_id">ID объекта</label>
+        <input type="text" id="object_id" name="object_id" value="{{ object_id }}" placeholder="Номер заказа, ID жалобы..." style="max-width: 100%;">
+    </div>
+    <div class="form-group" style="min-width: 160px;">
+        <label for="date_from">От</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from }}" style="max-width: 100%;">
+    </div>
+    <div class="form-group" style="min-width: 160px;">
+        <label for="date_to">До</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to }}" style="max-width: 100%;">
+    </div>
+    <div class="form-group" style="min-width: 200px;">
+        <label for="search">Поиск</label>
+        <input type="text" id="search" name="search" value="{{ search }}" placeholder="По описанию, ID объекта, пользователю..." style="max-width: 100%;">
+    </div>
+    <button type="submit" class="btn btn-primary" style="height: fit-content;">Применить</button>
+    {% if action_type or object_type or object_id or user_id or date_from or date_to or search %}
+    <a href="{{ url_for('admin.audit') }}" class="btn btn-secondary" style="height: fit-content;">Сбросить</a>
+    {% endif %}
+</form>
+
+<!-- Audit Table -->
+<div class="table-wrap">
+    <table class="table">
+    <thead>
+        <tr>
+            <th style="width: 160px;">Дата и время</th>
+            <th style="width: 100px;">Действие</th>
+            <th style="width: 100px;">Объект</th>
+            <th style="width: 140px;">ID объекта</th>
+            <th>Описание</th>
+            <th style="width: 140px;">Пользователь</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>
+                <span class="badge 
+                    {% if row.log.action_type == 'create' %}badge-success
+                    {% elif row.log.action_type == 'update' %}badge-warning
+                    {% elif row.log.action_type == 'delete' %}badge-danger
+                    {% elif row.log.action_type == 'import' %}badge-primary
+                    {% elif row.log.action_type == 'upload' %}badge-info
+                    {% else %}badge-primary{% endif %}">
+                    {{ row.log.action_type }}
+                </span>
+            </td>
+            <td>{{ row.log.object_type }}</td>
+            <td>
+                {% set obj_id = row.log.object_id %}
+                {% if row.log.object_type == 'order' %}
+                    <a href="{{ url_for('admin.edit_order', order_id=obj_id) }}" style="color: var(--primary); text-decoration: none;">{{ obj_id }}</a>
+                {% elif row.log.object_type == 'complaint' %}
+                    <a href="{{ url_for('admin.complaint_detail', complaint_id=obj_id) }}" style="color: var(--primary); text-decoration: none;">{{ obj_id }}</a>
+                {% elif row.log.object_type == 'user' %}
+                    <a href="{{ url_for('admin.users') }}#user-{{ obj_id }}" style="color: var(--primary); text-decoration: none;">{{ obj_id }}</a>
+                {% else %}
+                    {{ obj_id }}
+                {% endif %}
+            </td>
+            <td style="max-width: 400px; overflow-wrap: anywhere;">{{ row.log.description }}</td>
+            <td>
+                {% if row.log.user_fio %}
+                    <strong>{{ row.log.user_fio }}</strong>
+                {% elif row.log.user_id %}
+                    <span style="color: var(--text-tertiary);">ID: {{ row.log.user_id }}</span>
+                {% else %}
+                    <span style="color: var(--text-tertiary);">— (система)</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="6">
+                <div class="empty-state">
+                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    <div class="empty-state-title">Записей не найдено</div>
+                    <div class="empty-state-text">Попробуйте изменить фильтры поиска.</div>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+
+{% if pagination.pages > 1 %}
+<nav class="pagination">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('admin.audit', page=pagination.prev_num, action_type=action_type, object_type=object_type, object_id=object_id, user_id=user_id, date_from=date_from, date_to=date_to, search=search, per_page=per_page) }}" class="btn btn-secondary btn-sm">← Назад</a>
+    {% endif %}
+    <span class="pagination-info">Страница {{ pagination.page }} из {{ pagination.pages }} (всего {{ pagination.total }})</span>
+    {% if pagination.has_next %}
+        <a href="{{ url_for('admin.audit', page=pagination.next_num, action_type=action_type, object_type=object_type, object_id=object_id, user_id=user_id, date_from=date_from, date_to=date_to, search=search, per_page=per_page) }}" class="btn btn-secondary btn-sm">Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+<!-- Per page selector -->
+<form method="get" class="form-inline" style="margin-top: 1rem; justify-content: flex-end; gap: 12px;">
+    <input type="hidden" name="action_type" value="{{ action_type }}">
+    <input type="hidden" name="object_type" value="{{ object_type }}">
+    <input type="hidden" name="object_id" value="{{ object_id }}">
+    <input type="hidden" name="user_id" value="{{ user_id }}">
+    <input type="hidden" name="date_from" value="{{ date_from }}">
+    <input type="hidden" name="date_to" value="{{ date_to }}">
+    <input type="hidden" name="search" value="{{ search }}">
+    <div class="form-group">
+        <label for="per_page">На странице</label>
+        <select id="per_page" name="per_page" onchange="this.form.submit()" style="max-width: 100px;">
+            <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+        </select>
+    </div>
+</form>
+{% endblock %}

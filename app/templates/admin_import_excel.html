@@ -9,9 +9,10 @@
     <a href="{{ url_for('admin.import_mappings') }}" class="btn btn-secondary">Настроить маппинги</a>
 </div>
 
-<div class="card">
-    <h2>Загрузить файл</h2>
-        <form method="post" enctype="multipart/form-data" class="form-grid">
+<!-- Этап 1: Загрузка файла и превью -->
+<div class="card" id="stage-upload">
+    <h2>1. Загрузка и проверка файла</h2>
+    <form method="post" enctype="multipart/form-data" class="form-grid" id="upload-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group full-width">
             <label for="mapping_id">Маппинг *</label>
@@ -22,15 +23,95 @@
                 {% endfor %}
             </select>
         </div>
-        
+
         <div class="form-group full-width">
             <label for="excel_file">Файл Excel (.xlsx) *</label>
             <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
         </div>
-        
-        <button type="submit" class="btn btn-primary">Импортировать</button>
+
+        <button type="button" class="btn btn-primary" id="btn-preview">Проверить файл</button>
     </form>
 </div>
+
+<!-- Этап 2: Превью результата (скрыт до проверки) -->
+<div class="card" id="stage-preview" style="display: none;">
+    <h2>2. Результат проверки <span id="preview-summary" class="help-text"></span></h2>
+
+    <div class="preview-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+        <div class="stat-card stat-new">
+            <div class="stat-value" id="stat-new">0</div>
+            <div class="stat-label">Новых</div>
+        </div>
+        <div class="stat-card stat-updated">
+            <div class="stat-value" id="stat-updated">0</div>
+            <div class="stat-label">Обновляемых</div>
+        </div>
+        <div class="stat-card stat-duplicates">
+            <div class="stat-value" id="stat-duplicates">0</div>
+            <div class="stat-label">Дубликаты в файле</div>
+        </div>
+        <div class="stat-card stat-conflicts">
+            <div class="stat-value" id="stat-conflicts">0</div>
+            <div class="stat-label">Конфликты</div>
+        </div>
+        <div class="stat-card stat-unmatchable">
+            <div class="stat-value" id="stat-unmatchable">0</div>
+            <div class="stat-label">Не сопоставлены</div>
+        </div>
+        <div class="stat-card stat-skipped">
+            <div class="stat-value" id="stat-skipped">0</div>
+            <div class="stat-label">Пропущены</div>
+        </div>
+    </div>
+
+    <!-- Таблица деталей -->
+    <div class="table-wrap">
+        <table class="table" id="preview-table">
+            <thead>
+                <tr>
+                    <th>Строка</th>
+                    <th>Действие</th>
+                    <th>ID / Номер</th>
+                    <th>ФИО / Заказ</th>
+                    <th>Распознанные поля</th>
+                    <th>Причина / Детали</th>
+                </tr>
+            </thead>
+            <tbody id="preview-tbody">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+        <button type="button" class="btn btn-primary" id="btn-confirm">Подтвердить импорт</button>
+        <button type="button" class="btn btn-secondary" id="btn-back">Назад</button>
+    </div>
+</div>
+
+<!-- Этап 3: Результат импорта (показывается после подтверждения) -->
+<div class="card" id="stage-result" style="display: none;">
+    <h2>3. Результат импорта</h2>
+    <div id="result-content"></div>
+    <a href="{{ url_for('admin.import_excel') }}" class="btn btn-secondary">Новый импорт</a>
+</div>
+
+<!-- Отчёт об ошибках последнего импорта -->
+{% if session.get('import_report') %}
+<div class="card">
+    <h2>Отчёт об ошибках последнего импорта</h2>
+    <p>
+        Файл: {{ session.import_report.file }} — ошибок:
+        <strong>{{ session.import_report.total_errors }}</strong>
+        ({{ session.import_report.generated_at }}).
+        Показано в flash только первые 5, полный список — в отчёте.
+    </p>
+    <a class="btn btn-secondary"
+       href="{{ url_for('admin.import_report') }}"
+       download>
+        Скачать отчёт (.txt)
+    </a>
+</div>
+{% endif %}
 
 <div class="card">
     <h2>Как это работает</h2>
@@ -47,7 +128,7 @@
         <li><strong>Сначала загрузите файл заказов</strong> — создадутся заказы с external_id</li>
         <li><strong>Потом загрузите файл жалоб</strong> — они привяжутся к заказам по external_id</li>
     </ol>
-    
+
     <h3>Поля для жалоб (type=complaints)</h3>
     <p>В дополнительных полях укажите соответствие для сохранения в заказ:</p>
     <ul>
@@ -56,4 +137,195 @@
         <li><code>complaint_date</code> → дата жалобы (ISO формат)</li>
     </ul>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('upload-form');
+    const btnPreview = document.getElementById('btn-preview');
+    const stageUpload = document.getElementById('stage-upload');
+    const stagePreview = document.getElementById('stage-preview');
+    const stageResult = document.getElementById('stage-result');
+    const btnConfirm = document.getElementById('btn-confirm');
+    const btnBack = document.getElementById('btn-back');
+    const previewTbody = document.getElementById('preview-tbody');
+
+    // Цвета для типов действий
+    const actionStyles = {
+        'create': { label: 'Создать', class: 'badge-success' },
+        'update': { label: 'Обновить', class: 'badge-primary' },
+        'create_placeholder': { label: 'Создать заглушку', class: 'badge-warning' },
+        'add_complaint': { label: 'Добавить жалобу', class: 'badge-info' },
+        'duplicate': { label: 'Дубликат', class: 'badge-warning' },
+        'conflict': { label: 'Конфликт', class: 'badge-danger' },
+        'unmatchable': { label: 'Не сопоставлен', class: 'badge-danger' },
+        'skipped': { label: 'Пропуск', class: 'badge-secondary' },
+        'error': { label: 'Ошибка', class: 'badge-danger' },
+    };
+
+    btnPreview.addEventListener('click', async function() {
+        const mappingId = document.getElementById('mapping_id').value;
+        const fileInput = document.getElementById('excel_file');
+        const file = fileInput.files[0];
+
+        if (!mappingId) {
+            alert('Выберите маппинг');
+            return;
+        }
+        if (!file) {
+            alert('Выберите файл');
+            return;
+        }
+
+        btnPreview.disabled = true;
+        btnPreview.textContent = 'Проверка...';
+
+        const formData = new FormData();
+        formData.append('mapping_id', mappingId);
+        formData.append('excel_file', file);
+        formData.append('csrf_token', '{{ csrf_token() }}');
+
+        try {
+            const response = await fetch('{{ url_for("admin.import_excel_preview") }}', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Ошибка сервера');
+            }
+
+            showPreview(data.preview);
+        } catch (err) {
+            alert('Ошибка: ' + err.message);
+        } finally {
+            btnPreview.disabled = false;
+            btnPreview.textContent = 'Проверить файл';
+        }
+    });
+
+    function showPreview(preview) {
+        // Обновляем статистику
+        document.getElementById('stat-new').textContent = preview.new?.count || 0;
+        document.getElementById('stat-updated').textContent = preview.updated?.count || 0;
+        document.getElementById('stat-duplicates').textContent = preview.duplicates?.count || 0;
+        document.getElementById('stat-conflicts').textContent = preview.conflicts?.count || 0;
+        document.getElementById('stat-unmatchable').textContent = preview.unmatchable?.count || 0;
+        document.getElementById('stat-skipped').textContent = preview.skipped?.count || 0;
+
+        // Сводка
+        const total = (preview.new?.count || 0) + (preview.updated?.count || 0);
+        const problems = (preview.duplicates?.count || 0) + (preview.conflicts?.count || 0) + (preview.unmatchable?.count || 0);
+        document.getElementById('preview-summary').textContent =
+            `Всего строк: ${preview.total_rows || 0} | Будет создано/обновлено: ${total} | Проблем: ${problems}`;
+
+        // Заполняем таблицу
+        previewTbody.innerHTML = '';
+        const categories = [
+            { key: 'new', label: 'create' },
+            { key: 'updated', label: 'update' },
+            { key: 'duplicates', label: 'duplicate' },
+            { key: 'conflicts', label: 'conflict' },
+            { key: 'unmatchable', label: 'unmatchable' },
+            { key: 'skipped', label: 'skipped' },
+        ];
+
+        categories.forEach(cat => {
+            const items = preview[cat.key]?.rows || [];
+            items.forEach(item => {
+                const tr = document.createElement('tr');
+                const style = actionStyles[item.action] || actionStyles[cat.label] || { label: item.action || cat.label, class: '' };
+
+                // Распознанные поля
+                const recognizedStr = item.recognized
+                    ? Object.entries(item.recognized).map(([k, v]) => `${k}: ${v}`).join('; ')
+                    : '';
+
+                tr.innerHTML = `
+                    <td>${item.row}</td>
+                    <td><span class="badge ${style.class}">${style.label}</span></td>
+                    <td>${item.external_id || item.order_number || item.values?.[0] || '-'}</td>
+                    <td>${item.fio || item.existing_order_number || item.topic || '-'}</td>
+                    <td><small>${recognizedStr}</small></td>
+                    <td>${item.reason || '-'}</td>
+                `;
+                previewTbody.appendChild(tr);
+            });
+        });
+
+        // Показываем этап превью, скрываем загрузку
+        stageUpload.style.display = 'none';
+        stagePreview.style.display = 'block';
+    }
+
+    btnConfirm.addEventListener('click', async function() {
+        const previewData = sessionStorage.getItem('import_preview') ||
+                           JSON.parse('{{ session.get("import_preview") | tojson | safe }}');
+
+        // Используем файл из формы
+        const fileInput = document.getElementById('excel_file');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('Файл не выбран');
+            return;
+        }
+
+        btnConfirm.disabled = true;
+        btnConfirm.textContent = 'Импорт...';
+        btnBack.disabled = true;
+
+        const formData = new FormData();
+        formData.append('excel_file', file);
+        formData.append('csrf_token', '{{ csrf_token() }}');
+        formData.append('mapping_id', document.getElementById('mapping_id').value);
+
+        try {
+            const response = await fetch('{{ url_for("admin.import_excel_confirm") }}', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (response.redirected) {
+                // Перенаправление после успеха/ошибки
+                window.location.href = response.url;
+                return;
+            }
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Ошибка импорта');
+            }
+
+            showResult(data);
+        } catch (err) {
+            alert('Ошибка: ' + err.message);
+        } finally {
+            btnConfirm.disabled = false;
+            btnConfirm.textContent = 'Подтвердить импорт';
+            btnBack.disabled = false;
+        }
+    });
+
+    btnBack.addEventListener('click', function() {
+        stagePreview.style.display = 'none';
+        stageUpload.style.display = 'block';
+    });
+
+    function showResult(data) {
+        stagePreview.style.display = 'none';
+        stageResult.style.display = 'block';
+        document.getElementById('result-content').innerHTML = `
+            <p><strong>Создано:</strong> ${data.imported || 0}</p>
+            <p><strong>Обновлено:</strong> ${data.updated || 0}</p>
+            <p><strong>Пропущено:</strong> ${data.skipped || 0}</p>
+            <p><strong>Дублей:</strong> ${data.duplicates || 0}</p>
+            ${data.errors && data.errors.length ? `<p><strong>Ошибки:</strong> ${data.errors.slice(0, 10).join('; ')}${data.errors.length > 10 ? '...' : ''}</p>` : ''}
+        `;
+    }
+});
+</script>
 {% endblock %}

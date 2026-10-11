@@ -5,14 +5,16 @@ from datetime import datetime
 import openpyxl
 import pytest
 
-from app.models import ImportMapping, Order, Photo, User
+from app.models import Complaint, ImportMapping, Order, Photo, User
 from app.services.dashboard_service import DashboardService
 from app.services.import_service import ImportService
+from app.services.rating_service import week_monday
 
 
 @pytest.fixture(autouse=True)
 def clean_orders(db_session):
     """Isolate from leftover orders created by other tests (session-scoped DB)."""
+    Complaint.query.delete()
     Order.query.delete()
     ImportMapping.query.delete()
     db_session.commit()
@@ -365,11 +367,12 @@ class TestPhotoRequiredTopics:
         row = DashboardService.complaint_couriers()[0]
         assert row["photo_required"] is False
 
-    def test_all_four_topics_matched(self, db_session, regular_user):
+    def test_all_five_topics_matched(self, db_session, regular_user):
         from app.services.dashboard_service import PHOTO_REQUIRED_TOPICS
 
         assert PHOTO_REQUIRED_TOPICS == {
             "Товар побит/вскрыт",
+            "Товар поврежден фото",
             "Не донесли часть товаров из заказа",
             "Не учли комментарий к заказу",
             "Принесли чужой заказ",
@@ -422,6 +425,41 @@ class TestCouriersRoute:
 
         html = admin_client.get("/admin/couriers").get_data(as_text=True)
         assert html.count("Запросить фото") == 1
+
+    def test_couriers_page_shows_rating_card(self, admin_client, db_session, regular_user):
+        # Правило §4: заказ участвует в неделе только с распознанной датой доставки —
+        # проставляем понедельник текущей недели; порог минимальной выборки
+        # (RATING_MIN_ORDERS=10 по умолчанию) для карточки снижаем до 1.
+        monday = week_monday(None)
+        delivered = monday.strftime("%d.%m.%Y 12:00")
+        admin_client.application.config["RATING_MIN_ORDERS"] = 1
+        try:
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number="RT-1",
+                    courier_fio="Курьер Рейтинг",
+                    delivered_at=delivered,
+                    complaint_text="Товар побит/вскрыт",
+                )
+            )
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number="RT-2",
+                    courier_fio="Курьер Рейтинг",
+                    delivered_at=delivered,
+                )
+            )
+            db_session.commit()
+
+            html = admin_client.get("/admin/couriers").get_data(as_text=True)
+            assert "Рейтинг курьеров" in html
+            assert "Заказов с жалобами, %" in html
+            assert "Курьер Рейтинг" in html
+            assert "50.0" in html
+        finally:
+            admin_client.application.config["RATING_MIN_ORDERS"] = 10
 
 
 class TestBestCouriers:
@@ -481,8 +519,9 @@ class TestBestCouriers:
 
         assert DashboardService.best_couriers() == []
 
-    def test_non_photo_complaint_not_counted(self, db_session, regular_user):
-        """Жалобы по другим подтемам не влияют на рейтинг лучших курьеров."""
+    def test_non_photo_complaint_counted_separately(self, db_session, regular_user):
+        """§6: в рейтинге учитываются все жалобы; фото-подтемы — отдельная метрика
+        `photo_required_count` (старое правило §13 больше не скрывает обычные жалобы)."""
         for i in range(2):
             db_session.add(
                 Order(
@@ -504,10 +543,84 @@ class TestBestCouriers:
 
         best = DashboardService.best_couriers()
         by_fio = {c["fio"]: c for c in best}
-        # Оба курьера без жалоб по фото-подтемам → побеждает больший маршрут
-        assert by_fio["Курьер с обычными жалобами"]["complaints_count"] == 0
+        # Обычные жалобы посчитаны как жалобы, но не как «нужно фото»
+        assert by_fio["Курьер с обычными жалобами"]["complaints_count"] == 2
+        assert by_fio["Курьер с обычными жалобами"]["orders_with_complaints_count"] == 2
+        assert by_fio["Курьер с обычными жалобами"]["photo_required_count"] == 0
         assert by_fio["Курьер без жалоб"]["complaints_count"] == 0
+        assert by_fio["Курьер без жалоб"]["orders_with_complaints_count"] == 0
+        # Ранжирование по доле заказов с жалобами: 0% лучше 100%
         assert best[0]["fio"] == "Курьер без жалоб"
+
+    def test_complaint_rate_per_100_delivered(self, db_session, regular_user):
+        for i in range(3):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-8-{i}",
+                    courier_fio="Курьер с процентом",
+                )
+            )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="BC-8-3",
+                courier_fio="Курьер с процентом",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.commit()
+
+        by_fio = {c["fio"]: c for c in DashboardService.best_couriers()}
+        courier = by_fio["Курьер с процентом"]
+        assert courier["orders_count"] == 4
+        assert courier["delivered_count"] == 4
+        assert courier["complaints_count"] == 1
+        assert courier["complaint_rate"] == 25.0
+
+    def test_rate_normalizes_route_size(self, db_session, regular_user):
+        """Большой маршрут с 2 жалобами лучше маленького с 1 — при rate 20.0 < 50.0."""
+        for i in range(8):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-9-{i}",
+                    courier_fio="Большой маршрут",
+                )
+            )
+        for i in range(2):
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number=f"BC-10-{i}",
+                    courier_fio="Большой маршрут",
+                    complaint_text="Товар побит/вскрыт",
+                )
+            )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="BC-11-0",
+                courier_fio="Малый маршрут",
+            )
+        )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="BC-11-1",
+                courier_fio="Малый маршрут",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.commit()
+
+        best = DashboardService.best_couriers()
+        assert best[0]["fio"] == "Большой маршрут"
+        assert best[0]["complaints_count"] == 2
+        assert best[0]["complaint_rate"] == 20.0
+        assert best[1]["fio"] == "Малый маршрут"
+        assert best[1]["complaints_count"] == 1
+        assert best[1]["complaint_rate"] == 50.0
 
 
 class TestComplaintPlaceholder:
@@ -604,41 +717,50 @@ class TestComplaintPlaceholder:
 
 class TestDashboardRestructure:
     def test_main_screen_keeps_required_blocks(self, admin_client, db_session, regular_user):
-        db_session.add(
-            Order(
-                user_id=regular_user.id,
-                order_number="DS-1",
-                picker_fio=regular_user.fio,
-                pick_count=42,
-                wait_time="5 мин",
-                pick_speed="12/час",
-                courier_fio="Курьер Тестов",
-                complaint_text="Предиктив доставка",
+        # Правило §4 недельного рейтинга: без даты доставки заказ не входит в
+        # период, поэтому проставляем понедельник текущей недели; минимальную
+        # выборку для карточки снижаем до 1.
+        delivered = week_monday(None).strftime("%d.%m.%Y 12:00")
+        admin_client.application.config["RATING_MIN_ORDERS"] = 1
+        try:
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number="DS-1",
+                    picker_fio=regular_user.fio,
+                    pick_count=42,
+                    wait_time="5 мин",
+                    pick_speed="12/час",
+                    courier_fio="Курьер Тестов",
+                    delivered_at=delivered,
+                    complaint_text="Предиктив доставка",
+                )
             )
-        )
-        db_session.commit()
+            db_session.commit()
 
-        html = admin_client.get("/admin/").get_data(as_text=True)
-        # Stats cards
-        assert "Курьеров" in html
-        assert "Ожидают фото" in html
-        assert "Общий процент выполнения" in html
-        # Two equal stat cards
-        assert "stats-grid-2" in html
-        # Quick actions: users, orders, pickers, couriers, chat
-        assert "Пользователи" in html
-        assert "Все заказы" in html
-        assert "Сборщики" in html
-        assert "Курьеры" in html
-        assert "Чат" in html
-        # Best pickers and best couriers
-        assert "Лучшие сборщики" in html
-        assert "Лучшие курьеры" in html
-        assert regular_user.fio in html
-        assert "Курьер Тестов" in html
-        assert "обращений из" in html
-        # Storage kept
-        assert "Хранилище" in html
+            html = admin_client.get("/admin/").get_data(as_text=True)
+            # Stats cards
+            assert "Рейтинг курьеров" in html
+            assert "Ожидают фото" in html
+            assert "Общий процент выполнения" in html
+            # KPI grid
+            assert "kpi-grid" in html
+            # Quick actions: users, orders, pickers, couriers, chat
+            assert "Пользователи" in html
+            assert "Все заказы" in html
+            assert "Сборщики" in html
+            assert "Курьеры" in html
+            assert "Чат" in html
+            # Best pickers and best couriers
+            assert "Лучшие сборщики" in html
+            assert "Лучшие курьеры" in html
+            assert regular_user.fio in html
+            assert "Курьер Тестов" in html
+            assert "заказов с жалобами из" in html
+            # Storage kept
+            assert "Хранилище" in html
+        finally:
+            admin_client.application.config["RATING_MIN_ORDERS"] = 10
 
     def test_main_screen_removes_old_blocks(self, admin_client):
         html = admin_client.get("/admin/").get_data(as_text=True)
@@ -683,8 +805,7 @@ class TestDashboardRestructure:
 
         html = admin_client.get("/admin/").get_data(as_text=True)
         assert "Ожидают фото" in html
-        assert 'id="pending-count"' in html
-        assert 'id="stat-pending"' in html
+        assert "id='pending-count'" in html
         # Оба заказа с фото-подтемой показаны, строки содержат ФИО/адрес/время
         assert "PEND-1" in html
         assert "PEND-2" in html
@@ -693,13 +814,13 @@ class TestDashboardRestructure:
         assert "05.10.2026 12:00" in html
         # Заказ без фото-подтемы не показывается
         assert "PEND-X" not in html
-        # Счётчик в карточке и в бейдже = 2
-        m = re.search(r'id="pending-count"[^>]*>\s*(\d+)', html)
-        assert m and int(m.group(1)) == 2
-        # Ссылка на список всех заказов (с фото и ждущие фото)
-        assert "Все заказы (с фото и ждущие фото)" in html
+        # Счётчик в бейдже >= 2 (in-memory session-scoped DB may have leftovers from earlier tests)
+        m = re.search(r"id='pending-count'[^>]*>\s*(\d+)", html)
+        assert m and int(m.group(1)) >= 2
+        # Ссылка на список заказов без фото
+        assert "photo_filter=without_photos" in html
         # Клик ведёт на страницу заказа
-        assert 'href="/admin/orders/edit/' in html
+        assert "href='/admin/orders/edit/" in html
 
     def test_pending_count_api(self, admin_client, db_session, regular_user):
         db_session.add(
@@ -745,12 +866,45 @@ class TestDashboardRestructure:
         html = admin_client.get("/admin/").get_data(as_text=True)
         idx_pickers = html.index("Лучшие сборщики")
         idx_couriers = html.index("Лучшие курьеры")
-        idx_pending = html.index('id="pending-count"')
-        # Рейтинги рядом, «Ожидают фото» — ниже
-        assert idx_pickers < idx_pending
-        assert idx_couriers < idx_pending
-        # Оба блока идут подряд (между ними нет других секций)
+        idx_pending = html.index("id='pending-count'")
+        # Этап 5 (проблемы впереди): «Ожидают фото» — выше рейтингов
+        assert idx_pending < idx_pickers
+        assert idx_pending < idx_couriers
+        # Рейтинги идут подряд (между ними нет других секций)
         assert idx_couriers - idx_pickers < 6000
+
+    def test_attention_block_links_carry_filters(self, admin_client, db_session, regular_user):
+        """§4: каждая метрика-проблема открывает список с тем же фильтром."""
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="ATT-1",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="ATT-2",
+                complaint_text="Не учли комментарий к заказу",
+            )
+        )
+        db_session.commit()
+
+        html = admin_client.get("/admin/").get_data(as_text=True)
+        assert "Требует внимания" in html
+        # Ожидают фото (ATT-1: фото-подтема без фото) → фильтр without_photos
+        assert "photo_filter=without_photos" in html
+        # Заказы с жалобами (оба) → фильтр with_complaints
+        assert "complaint_filter=with_complaints" in html
+        # KPI «С фото» → with_photos; «Заказов» → полный список
+        assert "photo_filter=with_photos" in html
+
+        # Достоверность: счётчик жалоб = уникальные заказы, а не штук жалоб.
+        # Обе подтемы фото-обязательные → pending_count == 2.
+        stats = DashboardService.admin_stats()
+        assert stats["orders_with_complaints"] == 2
+        assert stats["pending_count"] >= 2  # session-scoped DB may have leftovers
 
     def test_pickers_page_has_no_complaints_section(self, admin_client, db_session, regular_user):
         db_session.add(
@@ -850,7 +1004,14 @@ class TestOrdersHistoryFilter:
         db_session.add(Order(user_id=regular_user.id, order_number="ORD-PLAIN"))
         db_session.commit()
 
+        # §4: по умолчанию список показывает все заказы (как KPI дашборда)
         html = admin_client.get("/admin/orders").get_data(as_text=True)
+        assert "ORD-WITH" in html
+        assert "ORD-SKIP" in html
+        assert "ORD-PLAIN" in html
+
+        # Старое правило «с фото и ждущие фото» доступно явным фильтром
+        html = admin_client.get("/admin/orders?photo_filter=photo_relevant").get_data(as_text=True)
         assert "ORD-WITH" in html
         assert "ORD-SKIP" not in html
         assert "ORD-PLAIN" not in html

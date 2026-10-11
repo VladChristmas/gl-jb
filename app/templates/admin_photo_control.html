@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Контроль фотографий{% endblock %}
+
+{% block content %}
+<header class='page-header'>
+    <h1>Контроль фотографий</h1>
+    <a href='{{ url_for('auth.admin_logout') }}' class='btn btn-secondary'>Выйти</a>
+</header>
+
+<!-- Period Selector -->
+<div class='period-selector' role='group' aria-label='Период'>
+    <a href='{{ url_for('admin.photo_control', period='today', problem=problem, courier=courier, search=search) }}' class='period-btn {% if period == "today" %}is-active{% endif %}'>Сегодня</a>
+    <a href='{{ url_for('admin.photo_control', period='week', problem=problem, courier=courier, search=search) }}' class='period-btn {% if period == "week" %}is-active{% endif %}'>Неделя</a>
+    <a href='{{ url_for('admin.photo_control', period='month', problem=problem, courier=courier, search=search) }}' class='period-btn {% if period == "month" %}is-active{% endif %}'>Месяц</a>
+    <details class='period-custom'>
+        <summary class='period-btn {% if period == "custom" %}is-active{% endif %}'>Произвольный</summary>
+        <form method='get' class='period-form'>
+            <input type='hidden' name='period' value='custom'>
+            <input type='hidden' name='problem' value='{{ problem }}'>
+            <input type='hidden' name='courier' value='{{ courier }}'>
+            <input type='hidden' name='search' value='{{ search }}'>
+            <label for='date_from'>От</label>
+            <input type='date' id='date_from' name='date_from' value='{{ date_from }}'>
+            <label for='date_to'>До</label>
+            <input type='date' id='date_to' name='date_to' value='{{ date_to }}'>
+            <button type='submit' class='btn btn-sm btn-primary'>Применить</button>
+        </form>
+    </details>
+</div>
+
+<!-- Problem Filter -->
+<div class='filter-chips' role='group' aria-label='Тип проблемы'>
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='all', courier=courier, search=search) }}' class='filter-chip {% if problem == "all" %}is-active{% endif %}'>Все</a>
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='no_photos', courier=courier, search=search) }}' class='filter-chip {% if problem == "no_photos" %}is-active{% endif %}'>Без фото</a>
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='required_missing', courier=courier, search=search) }}' class='filter-chip {% if problem == "required_missing" %}is-active{% endif %}'>Требуется фото</a>
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='corrupted', courier=courier, search=search) }}' class='filter-chip {% if problem == "corrupted" %}is-active{% endif %}'>Повреждённые</a>
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='duplicates', courier=courier, search=search) }}' class='filter-chip {% if problem == "duplicates" %}is-active{% endif %}'>Дубликаты</a>
+</div>
+
+<!-- KPI Cards Grid -->
+<div class='kpi-grid' role='list' aria-label='Ключевые показатели'>
+    <div class='kpi-card' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_count }}</span>
+        <span class='kpi-label'>Всего заказов</span>
+        <span class='kpi-hint'>за период</span>
+    </div>
+
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='no_photos', courier=courier, search=search) }}' class='kpi-card kpi-warning' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_without_photos }}</span>
+        <span class='kpi-label'>Без фото</span>
+        <span class='kpi-hint'>вообще</span>
+    </a>
+
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='required_missing', courier=courier, search=search) }}' class='kpi-card kpi-danger' role='listitem'>
+        <span class='kpi-value'>{{ stats.pending_count }}</span>
+        <span class='kpi-label'>Требуется фото</span>
+        <span class='kpi-hint'>по жалобе</span>
+    </a>
+
+    <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem='corrupted', courier=courier, search=search) }}' class='kpi-card kpi-danger' role='listitem'>
+        <span class='kpi-value'>{{ stats.corrupted_count }}</span>
+        <span class='kpi-label'>Повреждённые</span>
+        <span class='kpi-hint'>файл недоступен</span>
+    </a>
+
+    <div class='kpi-card' role='listitem'>
+        <span class='kpi-value'>{{ stats.orders_with_photos }}</span>
+        <span class='kpi-label'>С фото</span>
+        <span class='kpi-hint'>подтверждены</span>
+    </div>
+
+    <div class='kpi-card' role='listitem'>
+        <span class='kpi-value'>{{ stats.duplicates_count }}</span>
+        <span class='kpi-label'>Дубликаты</span>
+        <span class='kpi-hint'>пока не проверяются</span>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method='get' class='filter-form' style='margin-bottom: 1.5rem;'>
+    <input type='hidden' name='period' value='{{ period }}'>
+    <input type='hidden' name='date_from' value='{{ date_from }}'>
+    <input type='hidden' name='date_to' value='{{ date_to }}'>
+
+    <div class='filter-row' style='display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;'>
+        <div class='form-group' style='min-width: 200px; flex: 1;'>
+            <label for='search'>Поиск</label>
+            <input type='text' id='search' name='search' value='{{ search }}' placeholder='Номер заказа или описание'>
+        </div>
+        <div class='form-group' style='min-width: 200px;'>
+            <label for='courier'>Курьер</label>
+            <select id='courier' name='courier'>
+                <option value=''>Все курьеры</option>
+                {% for c in courier_choices %}
+                <option value='{{ c }}' {% if courier == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type='submit' class='btn btn-primary' style='min-height: 44px;'>Фильтровать</button>
+        {% if search or courier %}
+        <a href='{{ url_for('admin.photo_control', period=period, date_from=date_from, date_to=date_to, problem=problem) }}' class='btn btn-secondary' style='min-height: 44px;'>Сбросить</a>
+        {% endif %}
+        <a href='{{ url_for('admin.export_photo_control', period=period, date_from=date_from, date_to=date_to, problem=problem, courier=courier, search=search) }}' class='btn btn-secondary' style='min-height: 44px;'>⬇ Экспорт</a>
+    </div>
+</form>
+
+<!-- Orders Table / Cards -->
+{% if orders %}
+<div class='table-wrap' role='region' aria-label='Список проблемных заказов'>
+    <table class='table'>
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Заказ</th>
+                <th>Дата</th>
+                <th>Курьер</th>
+                <th>Фото</th>
+                <th>Проблема</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in orders %}
+            <tr>
+                <td>{{ item.order.id }}</td>
+                <td>
+                    <strong>{{ item.order.order_number or '#' ~ item.order.id }}</strong>
+                    {% if item.order.description %}
+                    <br><small style='color: var(--text-secondary);'>{{ item.order.description[:80] }}{% if item.order.description|length > 80 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+                <td>{{ item.order.created_at.strftime('%d.%m.%Y %H:%M') if item.order.created_at else '—' }}</td>
+                <td>{{ item.courier_fio }}</td>
+                <td>
+                    <span class='badge badge-{{ "success" if item.photos_count > 0 else "warning" }}'>
+                        {{ item.photos_count }} фото
+                    </span>
+                    {% if item.photo_required %}
+                    <br><small style='color: var(--warning);'>⚠ Требуется</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.problem_type == 'required_missing' %}
+                    <span class='badge badge-danger'>Требуется фото</span>
+                    {% elif item.problem_type == 'no_photos' %}
+                    <span class='badge badge-warning'>Без фото</span>
+                    {% elif item.problem_type == 'corrupted' %}
+                    <span class='badge badge-danger'>Повреждён файл</span>
+                    {% elif item.problem_type == 'duplicates' %}
+                    <span class='badge badge-info'>Дубликат</span>
+                    {% else %}
+                    <span class='badge badge-success'>OK</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class='action-buttons' style='display: flex; gap: 0.5rem; flex-wrap: wrap;'>
+                        <a href='{{ url_for('admin.edit_order', order_id=item.order.id) }}' class='btn btn-sm btn-secondary'>Открыть</a>
+                        {% if item.photos_count > 0 %}
+                        <a href='{{ url_for('admin.order_photos', order_id=item.order.id) }}' class='btn btn-sm btn-secondary'>Фото</a>
+                        {% endif %}
+                        <a href='{{ url_for('admin.edit_order', order_id=item.order.id) }}' class='btn btn-sm btn-primary'>Загрузить</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if pagination.pages > 1 %}
+<nav class='pagination' style='display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;'>
+    {% if pagination.has_prev %}
+    <a href='{{ url_for('admin.photo_control', page=pagination.prev_num, period=period, date_from=date_from, date_to=date_to, problem=problem, courier=courier, search=search) }}' class='btn btn-secondary btn-sm'>← Назад</a>
+    {% endif %}
+    <span class='pagination-info'>Страница {{ pagination.page }} из {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+    <a href='{{ url_for('admin.photo_control', page=pagination.next_num, period=period, date_from=date_from, date_to=date_to, problem=problem, courier=courier, search=search) }}' class='btn btn-secondary btn-sm'>Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% else %}
+<div class='empty-state' style='padding: 3rem; text-align: center;'>
+    <svg class='empty-state-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' style='width: 64px; height: 64px; margin-bottom: 1rem; opacity: 0.5;'>
+        <rect x='3' y='3' width='18' height='18' rx='2' ry='2'/>
+        <circle cx='8.5' cy='8.5' r='1.5'/>
+        <polyline points='21 15 16 10 5 21'/>
+    </svg>
+    <div class='empty-state-title'>Нет проблемных заказов</div>
+    <div class='empty-state-text'>Для выбранных фильтров заказов с проблемами не найдено.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    // Обновление превью периода при изменении date_from/date_to
+    document.addEventListener('DOMContentLoaded', function() {
+        var dateFrom = document.getElementById('date_from');
+        var dateTo = document.getElementById('date_to');
+        if (dateFrom) {
+            dateFrom.addEventListener('change', function() {
+                if (dateTo && dateTo.value && dateFrom.value > dateTo.value) {
+                    dateTo.value = dateFrom.value;
+                }
+            });
+        }
+        if (dateTo) {
+            dateTo.addEventListener('change', function() {
+                if (dateFrom && dateFrom.value && dateTo.value < dateFrom.value) {
+                    dateFrom.value = dateTo.value;
+                }
+            });
+        }
+    });
+})();
+</script>
+{% endblock %}

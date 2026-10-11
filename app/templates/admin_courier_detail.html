@@ -1,0 +1,335 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{% if courier %}Курьер: {{ courier.fio }}{% else %}Курьер не найден{% endif %}{% endblock %}
+
+{% block content %}
+{% if error_message %}
+<div class="card" style="background: linear-gradient(135deg, rgba(255, 69, 58, 0.08), rgba(255, 69, 58, 0.02)); border-color: rgba(255, 69, 58, 0.25);">
+    <div class="hero-card" style="text-align: center; padding: 32px;">
+        <div class="hero-icon" style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+        <div class="hero-title" style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">{{ error_message }}</div>
+        <a href="{{ url_for('admin.couriers', week=week_param, search=search, sort=sort, order=order) }}" class="btn btn-primary" style="margin-top: 16px;">Вернуться к рейтингу</a>
+    </div>
+</div>
+{% else %}
+<header class="page-header">
+    <h1>Курьер: {{ courier.fio }}</h1>
+    <a href="{{ url_for('admin.couriers', week=week_param, search=search, sort=sort, order=order) }}" class="btn btn-secondary">‹ Назад к рейтингу</a>
+</header>
+
+<!-- Week Navigation -->
+<div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <a href="{{ url_for('admin.courier_detail', fio=courier.fio, week=week_links.prev) }}" class="btn btn-sm btn-secondary" title="Предыдущая неделя">К прошлой неделе</a>
+            <strong style="min-width: 160px; text-align: center;">{{ rating.label if rating else week_param }}</strong>
+            <a href="{{ url_for('admin.courier_detail', fio=courier.fio, week=week_links.next) }}" class="btn btn-sm btn-secondary" title="Следующая неделя">К следующей неделе</a>
+            <a href="{{ url_for('admin.courier_detail', fio=courier.fio, week=week_links.now) }}" class="btn btn-sm btn-secondary" title="Текущая неделя">Сейчас</a>
+        </div>
+    </div>
+</div>
+
+<!-- Current Week Score Card -->
+<div class="card hero-card" style="margin-bottom: 16px;">
+    <div class="hero-content" style="flex: 1; min-width: 200px;">
+        <div class="hero-title" style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">Балл за неделю</div>
+        <div class="hero-text">Неделя {{ rating.label if rating else week_param }}</div>
+    </div>
+    <div style="text-align: right; flex-shrink: 0;">
+        <div style="font-size: 56px; font-weight: 700; color: var(--text); line-height: 1;">{{ '%.1f'|format(courier.quality_score) if courier.quality_score is not none else '—' }}</div>
+        {% if courier.quality_score is not none %}
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+            Место {{ courier.place }} из {{ rating.rows|length }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if courier.status == 'preliminary' %}
+<div class="card" style="background: linear-gradient(135deg, rgba(255, 159, 10, 0.08), rgba(255, 159, 10, 0.02)); border-color: rgba(255, 159, 10, 0.25); margin-bottom: 16px;">
+    <p class="help-text" style="margin: 0;">⚠️ Предварительный рейтинг — неделя ещё не завершена.</p>
+</div>
+{% elif courier.status == 'insufficient' %}
+<div class="card" style="background: var(--surface-2); border-color: var(--border-light); margin-bottom: 16px;">
+    <p class="help-text" style="margin: 0;">ℹ️ Недостаточно данных для расчёта балла (минимум {{ rating.min_orders }} заказов за неделю).</p>
+</div>
+{% endif %}
+
+<!-- KPI Grid -->
+<div class="card">
+    <h2>KPI за неделю</h2>
+    <div class="kpi-grid" style="margin-bottom: 0;">
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier.eligible_orders }}</div>
+            <div class="kpi-label">Заказов в периоде</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier.orders_with_complaints }}</div>
+            <div class="kpi-label">Заказов с жалобами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ '%.1f'|format(courier.complaint_rate) if courier.complaint_rate is not none else '—' }}</div>
+            <div class="kpi-label">% заказов с жалобами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier.complaints_count }}</div>
+            <div class="kpi-label">Всего жалоб</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier.orders_without_date }}</div>
+            <div class="kpi-label">Без распознанной даты</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value">{{ courier.total_orders }}</div>
+            <div class="kpi-label">Всего заказов (все время)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Dynamics to Previous Week -->
+{% if courier.deltas %}
+<div class="card">
+    <h2>Динамика к прошлой неделе</h2>
+
+    {% if courier.prev %}
+    <p class="help-text" style="margin-bottom: 12px;">
+        Сравнение с неделей {{ (rating.monday - (7 * 24 * 60 * 60 * 1000000000)).strftime('%d.%m') if rating.monday else 'предыдущей' }} — {{ (rating.monday - (1 * 24 * 60 * 60 * 1000000000)).strftime('%d.%m.%Y') if rating.monday else '' }}.
+        Предыдущая неделя рассчитана той же формулой.
+    </p>
+    {% else %}
+    <p class="help-text" style="margin-bottom: 12px; color: var(--text-secondary);">
+        Данных за прошлую неделю недостаточно для сравнения (менее {{ rating.min_orders }} заказов или курьера не было в рейтинге).
+    </p>
+    {% endif %}
+
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Показатель</th>
+                    <th>Текущая неделя</th>
+                    <th>Прошлая неделя</th>
+                    <th>Изменение</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Балл</strong></td>
+                    <td>{{ '%.1f'|format(courier.quality_score) if courier.quality_score is not none else '—' }}</td>
+                    <td>{{ '%.1f'|format(courier.prev.quality_score) if courier.prev.quality_score is not none else '—' }}</td>
+                    <td class="{% if courier.deltas.score is not none and courier.deltas.score > 0 %}text-success{% elif courier.deltas.score is not none and courier.deltas.score < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.score is not none %}{% if courier.deltas.score > 0 %}+{% endif %}{{ '%.1f'|format(courier.deltas.score) }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Заказы в периоде</strong></td>
+                    <td>{{ courier.eligible_orders }}</td>
+                    <td>{{ courier.prev.eligible_orders if courier.prev.eligible_orders is not none else '—' }}</td>
+                    <td class="{% if courier.deltas.orders is not none and courier.deltas.orders > 0 %}text-success{% elif courier.deltas.orders is not none and courier.deltas.orders < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.orders is not none %}{% if courier.deltas.orders > 0 %}+{% endif %}{{ courier.deltas.orders }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Заказов с жалобами</strong></td>
+                    <td>{{ courier.orders_with_complaints }}</td>
+                    <td>{{ courier.prev.orders_with_complaints if courier.prev.orders_with_complaints is not none else '—' }}</td>
+                    <td class="{% if courier.deltas.orders_with_complaints is not none and courier.deltas.orders_with_complaints > 0 %}text-danger{% elif courier.deltas.orders_with_complaints is not none and courier.deltas.orders_with_complaints < 0 %}text-success{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.orders_with_complaints is not none %}{% if courier.deltas.orders_with_complaints > 0 %}+{% endif %}{{ courier.deltas.orders_with_complaints }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Всего жалоб</strong></td>
+                    <td>{{ courier.complaints_count }}</td>
+                    <td>{{ courier.prev.complaints_count if courier.prev.complaints_count is not none else '—' }}</td>
+                    <td class="{% if courier.deltas.complaints is not none and courier.deltas.complaints > 0 %}text-danger{% elif courier.deltas.complaints is not none and courier.deltas.complaints < 0 %}text-success{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.complaints is not none %}{% if courier.deltas.complaints > 0 %}+{% endif %}{{ courier.deltas.complaints }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>% заказов с жалобами</strong></td>
+                    <td>{{ '%.1f'|format(courier.complaint_rate) if courier.complaint_rate is not none else '—' }}</td>
+                    <td>{{ '%.1f'|format(courier.prev.complaint_rate) if courier.prev.complaint_rate is not none else '—' }}</td>
+                    <td class="{% if courier.deltas.rate is not none and courier.deltas.rate > 0 %}text-danger{% elif courier.deltas.rate is not none and courier.deltas.rate < 0 %}text-success{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.rate is not none %}{% if courier.deltas.rate > 0 %}+{% endif %}{{ '%.1f'|format(courier.deltas.rate) }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Место в рейтинге</strong></td>
+                    <td>{{ courier.place }}</td>
+                    <td>{{ courier.prev.place if courier.prev.place else '—' }}</td>
+                    <td class="{% if courier.deltas.place is not none and courier.deltas.place > 0 %}text-success{% elif courier.deltas.place is not none and courier.deltas.place < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                        {% if courier.deltas.place is not none %}{% if courier.deltas.place > 0 %}+{% endif %}{{ courier.deltas.place }}{% else %}—{% endif %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Reasons / Explanation -->
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-light);">
+        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 8px;">Что повлияло на изменение</h3>
+        {% set factors = [] %}
+        {% if courier.deltas.orders_with_complaints is not none and courier.deltas.orders_with_complaints > 0 %}
+            {% set _ = factors.append('Увеличилось число заказов с жалобами на ' ~ courier.deltas.orders_with_complaints) %}
+        {% elif courier.deltas.orders_with_complaints is not none and courier.deltas.orders_with_complaints < 0 %}
+            {% set _ = factors.append('Уменьшилось число заказов с жалобами на ' ~ (courier.deltas.orders_with_complaints * -1)) %}
+        {% endif %}
+        {% if courier.deltas.orders is not none and courier.deltas.orders > 0 %}
+            {% set _ = factors.append('Общее число заказов выросло на ' ~ courier.deltas.orders) %}
+        {% elif courier.deltas.orders is not none and courier.deltas.orders < 0 %}
+            {% set _ = factors.append('Общее число заказов снизилось на ' ~ (courier.deltas.orders * -1)) %}
+        {% endif %}
+        {% if courier.deltas.complaints is not none and courier.deltas.complaints > 0 %}
+            {% set _ = factors.append('Число жалоб выросло на ' ~ courier.deltas.complaints) %}
+        {% elif courier.deltas.complaints is not none and courier.deltas.complaints < 0 %}
+            {% set _ = factors.append('Число жалоб снизилось на ' ~ (courier.deltas.complaints * -1)) %}
+        {% endif %}
+
+        {% if factors %}
+        <ul style="margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 14px; line-height: 1.8;">
+            {% for factor in factors %}
+            <li>{{ factor }}</li>
+            {% endfor %}
+        </ul>
+        <p class="help-text" style="margin-top: 8px; margin-bottom: 0;">
+            <em>Примечание: факторы показаны как наблюдаемые изменения. Система не хранит историю причин,
+            поэтому корреляция не означает причинно-следственную связь.</em>
+        </p>
+        {% else %}
+        <p class="help-text" style="margin: 0; color: var(--text-secondary);">
+            Значимых изменений в показателях не зафиксировано.
+        </p>
+        {% endif %}
+    </div>
+{% else %}
+<div class="card">
+    <h2>Динамика</h2>
+    <p class="help-text" style="margin: 0; color: var(--text-secondary);">
+        История баллов за прошлые недели не сохраняется. Сравнение доступно только с предыдущей неделей
+        при наличии достаточного числа заказов в обоих периодах.
+    </p>
+</div>
+{% endif %}
+
+<!-- Orders for the Week -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <h2 style="margin: 0;">Заказы за неделю</h2>
+        {% if detail_orders %}
+        <span class="help-text" style="margin: 0;">{{ detail_orders|length }} заказ{{ 'ов' if detail_orders|length > 1 else '' }}</span>
+        {% endif %}
+    </div>
+
+    {% if detail_orders %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Номер заказа</th>
+                    <th>Дата доставки</th>
+                    <th>Статус жалобы</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in detail_orders %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ record.order_number or '#' ~ record.order_id }}</td>
+                    <td>{{ record.dt.strftime('%d.%m.%Y %H:%M') if record.dt else '—' }}</td>
+                    <td>
+                        {% if record.complaint_text %}
+                        <span class="badge badge-danger" style="max-width: 200px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;">{{ record.complaint_text[:80] }}{% if record.complaint_text|length > 80 %}…{% endif %}</span>
+                        {% else %}
+                        <span class="badge badge-success">Без жалобы</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_order', order_id=record.order_id) }}" class="btn btn-sm btn-secondary">Открыть</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px; text-align: center;">
+        <div class="empty-state-text">Заказов за эту неделю нет</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Formula explanation -->
+<details class="card" style="margin-top: 16px;">
+    <summary style="cursor: pointer; font-weight: 600;">Как считается балл</summary>
+    <div class="help-text" style="margin-top: 12px; line-height: 1.6;">
+        <p style="margin-top: 0;">
+            <strong>Формула:</strong> балл = 100 − (процент заказов с жалобами × K),
+            ограниченный диапазоном 1–100.
+        </p>
+        <p>
+            <strong>K (штраф за процент)</strong> = {{ rating.penalty_k }} (<code>RATING_PENALTY_PER_PERCENT</code>).
+            При K=1: 10% жалоб → балл 90; 50% → 50; 100% → 1.
+        </p>
+        <p>
+            <strong>Процент заказов с жалобами</strong> = заказы с жалобами ÷ заказы периода × 100.
+            «Заказы периода» — только заказы с распознанной датой доставки в выбранной неделе.
+            Заказы без даты не входят в знаменатель и показаны отдельно.
+        </p>
+        <p>
+            <strong>Жалоба учитывается один раз на заказ</strong>, даже если в ней несколько позиций
+            (зеркало в Order.complaint_text разделяется по «; »).
+        </p>
+        <p style="margin-bottom: 0;">
+            <strong>Минимальная выборка</strong> — {{ rating.min_orders }} заказов за неделю
+            (<code>RATING_MIN_ORDERS</code>). Меньше — балла нет, статус «Недостаточно данных».
+        </p>
+    </div>
+</details>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Ensure mobile table card view works for detail page too
+(function () {
+    if (!window.matchMedia) return;
+    var media = window.matchMedia('(max-width: 768px)');
+    function applyCardTables() {
+        document.querySelectorAll('.table-wrap .table').forEach(function (table) {
+            if (!media.matches) {
+                table.classList.remove('is-cards');
+                return;
+            }
+            table.classList.add('is-cards');
+            var headers = table.querySelectorAll('thead th');
+            table.querySelectorAll('tbody tr').forEach(function (row) {
+                Array.prototype.forEach.call(row.children, function (cell, index) {
+                    if (cell.tagName !== 'TD' || cell.hasAttribute('colspan')) {
+                        cell.removeAttribute('data-label');
+                        return;
+                    }
+                    var header = headers[index];
+                    if (header) {
+                        cell.setAttribute('data-label', header.textContent.trim());
+                    } else {
+                        cell.removeAttribute('data-label');
+                    }
+                });
+            });
+        });
+    }
+    applyCardTables();
+    if (media.addEventListener) media.addEventListener('change', applyCardTables);
+    else if (media.addListener) media.addListener(applyCardTables);
+    if (window.MutationObserver && document.body) {
+        var timer = null;
+        new MutationObserver(function () {
+            clearTimeout(timer);
+            timer = setTimeout(applyCardTables, 200);
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+})();
+</script>
+{% endblock %}

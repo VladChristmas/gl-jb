@@ -7,7 +7,7 @@ Flask-приложение для управления заказами и фо�
 
 ## Текущее состояние (Что сделано)
 
-### Backend (app.py + models.py)
+### Backend (пакет `app/`, blueprints, `wsgi.py`)
 - **Модели БД** (Flask-SQLAlchemy): `User`, `Order`, `Photo` с внешними ключами и каскадным удалением
 - **Миграции**: Flask-Migrate (Alembic) настроен, создана начальная миграция
 - **Админка**:
@@ -40,7 +40,7 @@ Flask-приложение для управления заказами и фо�
   - systemd service file
   - gunicorn конфиг
 
-### Frontend (templates/ + static/style.css)
+### Frontend (`app/templates/` + `app/static/style.css`)
 - **Базовый шаблон** (`base.html`): флеш-сообщения, подключение CSS
 - **Админка**: login, token_login, dashboard, users, upload_excel, orders, edit_order — адаптивные, с таблицами, пагинацией, поиском
 - **Пользовательская**: login, orders (карточки с формами загрузки, пагинацией, поиском), order_photos (галерея с удалением фото)
@@ -180,9 +180,9 @@ photos:
 
 ## Примечания для следующего агента
 - Проект готов к продакшену: CSRF, rate limiting, логирование, миграции, Docker, systemd
-- Основная логика в `app.py` — можно разбить на blueprints для масштабирования
-- Шаблоны используют наследование от `base.html`, стили в `static/style.css`
-- БД — SQLite файл `database.db` в корне проекта (миграции в `migrations/`)
+- Приложение разбито на blueprints в `app/` (`admin`, `user`, `api`, `picker`); `app.py` — только thin entrypoint, продакшен запускается через `wsgi.py` (`gunicorn wsgi:app`)
+- Шаблоны используют наследование от `base.html` (`app/templates/`), стили в `app/static/style.css`
+- Источник истины по моделям — `app/models.py`; БД выбирается по `DATABASE_URL` (SQLite `database.db` по умолчанию, PostgreSQL в продакшене), миграции в `migrations/`
 - Загруженные фото в `uploads/` (создаётся автоматически)
 - Логи в `logs/app.log` (ротация 10 файлов по 10KB)
 - Для продакшена: задать секреты в `.env` (их нет в репозитории), настроить HTTPS, рассмотреть PostgreSQL
