@@ -76,7 +76,7 @@ class ComplaintService:
 
         for existing in order.complaints:  # type: ignore[attr-defined]
             if existing.text == cleaned:
-                changes = {}
+                changes: dict[str, tuple[Any, Any]] = {}
                 if status and existing.status != status:
                     changes["status"] = (existing.status, status)
                 if created_at and existing.created_at != created_at:

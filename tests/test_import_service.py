@@ -2,7 +2,7 @@ import io
 
 import openpyxl
 
-from app.models import ImportMapping, Order, User
+from app.models import ImportMapping, Order
 from app.services.import_service import ImportService
 
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 import openpyxl
 from werkzeug.datastructures import FileStorage
@@ -71,7 +72,16 @@ class ImportService:
         # Подтема — ищем в order_data по разным вариантам названий
         topic = None
         if order_data:
-            for key in ("Подтема", "подтема", "Тема", "тема", "Причина", "причина", "complaint_text", "subtopic"):
+            for key in (
+                "Подтема",
+                "подтема",
+                "Тема",
+                "тема",
+                "Причина",
+                "причина",
+                "complaint_text",
+                "subtopic",
+            ):
                 if key in order_data and order_data[key]:
                     topic = order_data[key]
                     break
@@ -86,7 +96,14 @@ class ImportService:
         # Время завершения — confirmed_at или delivery_started или delivered_at
         time_val = None
         if order_data:
-            for key in ("confirmed_at", "confirmed", "delivery_started", "delivery_finished", "completed_at", "finished_at"):
+            for key in (
+                "confirmed_at",
+                "confirmed",
+                "delivery_started",
+                "delivery_finished",
+                "completed_at",
+                "finished_at",
+            ):
                 if key in order_data and order_data[key]:
                     time_val = order_data[key]
                     break
@@ -462,7 +479,7 @@ class ImportService:
         duplicate_rows = []  # дубликаты в файле
         conflict_rows = []  # конфликты с существующими данными
         unmatchable_rows = []  # не сопоставленные (нет заказа, нет юзера)
-        error_rows = []  # ошибки формата/валидации
+        error_rows: list[dict[str, Any]] = []  # ошибки формата/валидации
         skipped_rows = []  # пропущенные (пустые ID, пустое ФИО)
 
         # Для отслеживания дублей внутри файла

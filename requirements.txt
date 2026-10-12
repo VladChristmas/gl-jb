@@ -12,5 +12,9 @@ psycopg==3.2.9
 celery==5.4.0
 redis==5.0.1
 flask-talisman==1.1.0
-python-magic==0.4.27
+python-magic==0.4.27; platform_system != "Windows"
+python-magic-bin==0.4.14; platform_system == "Windows"
 flask-sqlalchemy==3.1.1
+# Зависимости scripts/import_ods.py (конвертация ODS -> XLSX)
+pandas==3.0.6
+odfpy==1.4.1

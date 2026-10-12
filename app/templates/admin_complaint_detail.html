@@ -72,7 +72,13 @@
                 </dd>
 
                 <dt>Клиент</dt>
-                <dd><a href="{{ url_for('admin.edit_user', user_id=user.id) }}">{{ user.fio }}</a></dd>
+                <dd>
+                    {% if user %}
+                    <a href="{{ url_for('admin.orders', user_id=user.id) }}">{{ user.fio }}</a>
+                    {% else %}
+                    {{ order.user_fio or '—' }}
+                    {% endif %}
+                </dd>
 
                 <dt>Курьер</dt>
                 <dd>{{ order.courier_fio or '—' }}</dd>

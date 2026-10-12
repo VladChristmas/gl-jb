@@ -8,7 +8,8 @@ import io
 import re
 import statistics
 from collections import defaultdict
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
+from typing import Any
 
 import openpyxl
 from openpyxl import Workbook
@@ -89,7 +90,7 @@ class OperationalAnalysisService:
     COMPLAINT_TEXT_KEYWORDS = ["жалоба", "причина", "текст жалобы", "подтема", "тема", "complaint"]
 
     @staticmethod
-    def _normalize_id(value) -> str:
+    def _normalize_id(value: Any) -> str:
         """Нормализация ID заказа: убирает пробелы, сохраняет значащие нули."""
         if value is None:
             return ""
@@ -106,12 +107,23 @@ class OperationalAnalysisService:
         return text
 
     @staticmethod
+    def _as_naive_utc(value: datetime | None) -> datetime | None:
+        """Нормализация к naive UTC.
+
+        Все дальнейшие вычитания дат (end - start, start - queue_time) выполняются
+        с naive-датами; tz-aware значение привело бы к TypeError при вычитании.
+        """
+        if value is not None and value.tzinfo is not None:
+            return value.astimezone(UTC).replace(tzinfo=None)
+        return value
+
+    @staticmethod
     def _parse_datetime(value):
         """Парсинг даты/времени из Excel (datetime, строка, дробь)."""
         if value is None:
             return None
         if isinstance(value, datetime):
-            return value
+            return OperationalAnalysisService._as_naive_utc(value)
         if isinstance(value, date):
             return datetime.combine(value, time.min)
         if isinstance(value, int | float):
@@ -148,12 +160,14 @@ class OperationalAnalysisService:
                 continue
         # ISO format
         try:
-            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+            return OperationalAnalysisService._as_naive_utc(
+                datetime.fromisoformat(text.replace("Z", "+00:00"))
+            )
         except Exception:
             return None
 
     @staticmethod
-    def _parse_number(value) -> float | None:
+    def _parse_number(value: Any) -> float | None:
         """Парсинг числа из строки ('5', '5,5', '5.5', '5 мин')."""
         if value is None:
             return None
@@ -188,7 +202,7 @@ class OperationalAnalysisService:
         return result
 
     @classmethod
-    def _detect_sheet(cls, workbook, candidates: list[str]):
+    def _detect_sheet(cls, workbook: Workbook, candidates: list[str]) -> Any | None:
         """Определение листа по названию."""
         sheet_names = [name.strip().lower() for name in workbook.sheetnames]
         for candidate in candidates:
@@ -198,7 +212,9 @@ class OperationalAnalysisService:
         return None
 
     @classmethod
-    def analyze_file(cls, file, wait_threshold: int | None = None) -> OperationalAnalysisSession:
+    def analyze_file(
+        cls, file: Any, wait_threshold: int | None = None
+    ) -> OperationalAnalysisSession:
         """Полный анализ Excel-файла: чтение, связывание, расчёт, сохранение.
 
         Принимает FileStorage или BytesIO.
@@ -543,7 +559,7 @@ class OperationalAnalysisService:
         return complaints_sheet, orders_sheet, assembly_sheet
 
     @classmethod
-    def _read_complaints_sheet(cls, sheet) -> tuple[list[dict], DataQualityIssue | None]:
+    def _read_complaints_sheet(cls, sheet: Any) -> tuple[list[dict], DataQualityIssue | None]:
         """Чтение листа жалоб."""
         if sheet is None:
             return [], DataQualityIssue(
@@ -589,7 +605,7 @@ class OperationalAnalysisService:
         return data, None
 
     @classmethod
-    def _read_orders_sheet(cls, sheet) -> tuple[list[dict], DataQualityIssue | None]:
+    def _read_orders_sheet(cls, sheet: Any) -> tuple[list[dict], DataQualityIssue | None]:
         """Чтение листа заказов."""
         if sheet is None:
             return [], DataQualityIssue(
@@ -623,7 +639,7 @@ class OperationalAnalysisService:
                 severity="error",
             )
 
-        data = []
+        data: list[dict[str, Any]] = []
         for row in rows[1:]:
             if not any(row):
                 continue
@@ -652,7 +668,7 @@ class OperationalAnalysisService:
         return data, None
 
     @classmethod
-    def _read_assembly_sheet(cls, sheet) -> tuple[list[dict], DataQualityIssue | None]:
+    def _read_assembly_sheet(cls, sheet: Any) -> tuple[list[dict], DataQualityIssue | None]:
         """Чтение листа собранных заказов."""
         if sheet is None:
             return [], DataQualityIssue(
@@ -939,13 +955,14 @@ class OperationalAnalysisService:
         return output.getvalue()
 
     @classmethod
-    def get_recent_sessions(cls, limit: int = 20) -> list:
+    def get_recent_sessions(cls, limit: int = 20) -> list[OperationalAnalysisSession]:
         """Получение последних сессий анализа."""
-        return (
+        sessions: list[OperationalAnalysisSession] = (
             OperationalAnalysisSession.query.order_by(OperationalAnalysisSession.uploaded_at.desc())
             .limit(limit)
             .all()
         )
+        return sessions
 
     @classmethod
     def delete_session(cls, session_id: int) -> bool:

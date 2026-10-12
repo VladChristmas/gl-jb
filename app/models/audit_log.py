@@ -14,13 +14,21 @@ class AuditLog(db.Model):  # type: ignore[name-defined]
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False, index=True)
 
     # Actor — nullable for system actions (e.g. import, background jobs)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     user_fio = db.Column(db.String(255))  # denormalized for display if user deleted
 
     # Action classification
-    action_type = db.Column(db.String(30), nullable=False, index=True)  # create, update, delete, import, upload, role_change
-    object_type = db.Column(db.String(30), nullable=False, index=True)  # order, complaint, photo, import, user
-    object_id = db.Column(db.String(100), nullable=False, index=True)   # order_number, complaint_id, photo_id, import mapping id, user id
+    action_type = db.Column(
+        db.String(30), nullable=False, index=True
+    )  # create, update, delete, import, upload, role_change
+    object_type = db.Column(
+        db.String(30), nullable=False, index=True
+    )  # order, complaint, photo, import, user
+    object_id = db.Column(
+        db.String(100), nullable=False, index=True
+    )  # order_number, complaint_id, photo_id, import mapping id, user id
 
     # Human-readable summary (safe for logs, no PII/PD)
     description = db.Column(db.Text, nullable=False)

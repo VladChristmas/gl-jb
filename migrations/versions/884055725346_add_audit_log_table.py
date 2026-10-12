@@ -5,9 +5,8 @@ Revises: c3d5e7f9a1b4
 Create Date: 2026-10-11 10:40:01.606580
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '884055725346'
@@ -17,6 +16,10 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if 'audit_log' in inspector.get_table_names():
+        return
     op.create_table(
         'audit_log',
         sa.Column('id', sa.Integer(), nullable=False),

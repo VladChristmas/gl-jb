@@ -142,6 +142,8 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Данные из Excel приходят через innerHTML — экранируем (XSS из файла)
+    const esc = GLB.escapeHtml;
     const uploadForm = document.getElementById('upload-form');
     const btnPreview = document.getElementById('btn-preview');
     const stageUpload = document.getElementById('stage-upload');
@@ -245,12 +247,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     : '';
 
                 tr.innerHTML = `
-                    <td>${item.row}</td>
+                    <td>${esc(item.row)}</td>
                     <td><span class="badge ${style.class}">${style.label}</span></td>
-                    <td>${item.external_id || item.order_number || item.values?.[0] || '-'}</td>
-                    <td>${item.fio || item.existing_order_number || item.topic || '-'}</td>
-                    <td><small>${recognizedStr}</small></td>
-                    <td>${item.reason || '-'}</td>
+                    <td>${esc(item.external_id || item.order_number || item.values?.[0]) || '-'}</td>
+                    <td>${esc(item.fio || item.existing_order_number || item.topic) || '-'}</td>
+                    <td><small>${esc(recognizedStr)}</small></td>
+                    <td>${esc(item.reason) || '-'}</td>
                 `;
                 previewTbody.appendChild(tr);
             });
@@ -323,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <p><strong>Обновлено:</strong> ${data.updated || 0}</p>
             <p><strong>Пропущено:</strong> ${data.skipped || 0}</p>
             <p><strong>Дублей:</strong> ${data.duplicates || 0}</p>
-            ${data.errors && data.errors.length ? `<p><strong>Ошибки:</strong> ${data.errors.slice(0, 10).join('; ')}${data.errors.length > 10 ? '...' : ''}</p>` : ''}
+            ${data.errors && data.errors.length ? `<p><strong>Ошибки:</strong> ${esc(data.errors.slice(0, 10).join('; '))}${data.errors.length > 10 ? '...' : ''}</p>` : ''}
         `;
     }
 });

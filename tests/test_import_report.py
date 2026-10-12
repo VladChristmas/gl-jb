@@ -6,6 +6,7 @@
 
 import io
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -145,3 +146,57 @@ class TestImportReport:
         )
 
         assert admin_client.get("/admin/import_report").status_code == 302
+
+    def test_session_cookie_stays_within_browser_limit(
+        self, admin_client, app, import_mapping, monkeypatch
+    ):
+        """P2: полный отчёт об ошибках не должен попадать в session-cookie.
+
+        Кука > 4093 байт молча отбрасывается реальными браузерами (werkzeug
+        предупреждает): ссылка на скачивание и блок отчёта пропадали.
+        """
+        errors = [f"Строка {index}: ошибка {index}" for index in range(1500)]
+
+        monkeypatch.setattr(
+            ImportService,
+            "import_with_mapping",
+            staticmethod(
+                lambda file, mapping: {
+                    "imported": 0,
+                    "updated": 0,
+                    "skipped": 1500,
+                    "errors": errors,
+                }
+            ),
+        )
+
+        resp = admin_client.post(
+            "/admin/import_excel",
+            data={
+                "mapping_id": str(import_mapping.id),
+                "excel_file": (io.BytesIO(b"PK\x03\x04fake"), "orders.xlsx"),
+            },
+            content_type="multipart/form-data",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        set_cookie = resp.headers.get("Set-Cookie", "")
+        assert "session=" in set_cookie, "Сессионная кука не установлена"
+        cookie_value = set_cookie.split("session=", 1)[1].split(";", 1)[0]
+        assert len(cookie_value) <= 4093, (
+            f"session-cookie {len(cookie_value)} байт > лимита 4093: "
+            "браузер молча отбросит отчёт"
+        )
+
+        # Отчёт хранится на диске и удаляется после скачивания
+        report_dir = Path(app.instance_path) / "import_reports"
+        with admin_client.session_transaction() as sess:
+            report_id = sess["import_report"]["id"]
+        report_path = report_dir / f"{report_id}.json"
+        assert report_path.exists(), "Отчёт не сохранён на диск"
+
+        body = admin_client.get("/admin/import_report").get_data().decode("utf-8-sig")
+        assert "Всего ошибок: 1500" in body
+        assert "1000. Строка 999: ошибка 999" in body
+        assert "... и ещё 500 ошибок" in body
+        assert not report_path.exists(), "Файл отчёта не удалён"

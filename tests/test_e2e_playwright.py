@@ -508,3 +508,77 @@ class TestViewportMatrix:
             assert page_errors == [], f"JS-ошибки на ширине {width}: {page_errors}"
         finally:
             context.close()
+
+
+class TestJsRegressions:
+    """P2-фиксы: confirmDelete как глобальная функция и живой счётчик pending."""
+
+    def test_confirm_delete_shows_undo_toast_before_submitting(
+        self, browser, live_server, photo_required_order
+    ):
+        """Удаление идёт через undo-тост, а не сразу.
+
+        До фикса confirmDelete был только GLB.confirmDelete, шаблоны вызывали
+        confirmDelete(...) → ReferenceError → форма удалялась без подтверждения.
+        """
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            page.goto(f"{live_server}/admin/orders")
+
+            action = f"/admin/orders/delete/{photo_required_order.id}"
+            form = page.locator(f'form[action="{action}"]')
+            assert form.count() == 1, "Форма удаления заказа не найдена"
+
+            url_before = page.url
+            form.locator('button[type="submit"]').click()
+            page.wait_for_timeout(400)
+
+            assert (
+                page.url == url_before
+            ), "Заказ удалился без подтверждения (confirmDelete не сработал)"
+            toast = page.locator(".toast")
+            assert toast.count() >= 1, "Undo-тост не показан"
+            assert f"Удалить заказ #{photo_required_order.id}" in toast.inner_text()
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+
+            # Подтверждаем удаление кликом по кнопке тоста
+            toast.locator("button.toast-action").click()
+            page.wait_for_load_state()
+            page.wait_for_timeout(400)
+            assert (
+                page.locator(f'form[action="{action}"]').count() == 0
+            ), "Заказ не удалился после подтверждения в тосте"
+            assert page_errors == [], f"JS-ошибки после подтверждения: {page_errors}"
+        finally:
+            context.close()
+
+    def test_pending_count_badge_refreshes_via_js(self, browser, live_server):
+        """P2: второй аргумент initNotifications(apiUrl, pendingUrl) подключён."""
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            assert page.locator("#pending-count").count() == 1
+
+            arity = page.evaluate("GLB.initNotifications.length")
+            assert (
+                arity == 2
+            ), f"initNotifications игнорирует второй аргумент (arity={arity}, ждём 2)"
+
+            page.evaluate("document.getElementById('pending-count').textContent = 'STALE'")
+            page.evaluate(
+                "GLB.initNotifications(" "'/admin/api/notifications', '/admin/api/pending_count')"
+            )
+            page.wait_for_function(
+                "document.getElementById('pending-count').textContent !== 'STALE'",
+                timeout=5000,
+            )
+            text = page.locator("#pending-count").inner_text()
+            assert text.strip().isdigit(), f"Бейдж показывает не число: {text!r}"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()

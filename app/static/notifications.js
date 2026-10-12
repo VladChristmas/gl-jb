@@ -40,6 +40,22 @@
         return Object.entries(seen).map(function (kv) { return kv[0] + ':' + kv[1]; }).join(',');
     }
 
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Внутренний путь или '#': target_url попадает в href через innerHTML
+    function safeUrl(value) {
+        var s = value ? String(value) : '';
+        return (s.charAt(0) === '/' && s.charAt(1) !== '/') ? escapeHtml(s) : '#';
+    }
+
     function renderNotifications(data) {
         var list = document.getElementById('notification-list');
         var badge = document.getElementById('notification-badge');
@@ -67,14 +83,14 @@
 
         list.innerHTML = unread.map(function (n) {
             var timeStr = n.time_iso ? n.time_iso.slice(0, 16).replace('T', ' ') : '';
-            return '<a href="' + n.target_url + '" class="notification-item" data-dedup-key="' + n.dedup_key + '" role="menuitem">' +
-                '<span class="notification-severity notification-' + n.severity + '"></span>' +
+            return '<a href="' + safeUrl(n.target_url) + '" class="notification-item" data-dedup-key="' + escapeHtml(n.dedup_key) + '" role="menuitem">' +
+                '<span class="notification-severity notification-' + escapeHtml(n.severity) + '"></span>' +
                 '<div class="notification-content">' +
-                '<div class="notification-title">' + n.title + '</div>' +
-                '<div class="notification-desc">' + n.description + '</div>' +
+                '<div class="notification-title">' + escapeHtml(n.title) + '</div>' +
+                '<div class="notification-desc">' + escapeHtml(n.description) + '</div>' +
                 '<div class="notification-meta">' +
-                '<span class="notification-time">' + timeStr + '</span>' +
-                '<span class="notification-action">' + n.target_label + '</span>' +
+                '<span class="notification-time">' + escapeHtml(timeStr) + '</span>' +
+                '<span class="notification-action">' + escapeHtml(n.target_label) + '</span>' +
                 '</div>' +
                 '</div>' +
                 '</a>';
@@ -82,7 +98,7 @@
     }
 
     window.GLB = window.GLB || {};
-    GLB.initNotifications = function (apiUrl) {
+    GLB.initNotifications = function (apiUrl, pendingUrl) {
         function fetchNotifications() {
             var seen = getSeen();
             var param = buildSeenParam(seen);
@@ -156,9 +172,9 @@
         fetchNotifications();
         setInterval(fetchNotifications, POLL_INTERVAL);
 
-        // Pending count polling
-        function refreshPending(pendingUrl) {
-            fetch(pendingUrl)
+        // Pending count polling (второй аргумент initNotifications)
+        function refreshPending(url) {
+            fetch(url)
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (typeof data.pending !== 'number') return;
@@ -169,7 +185,8 @@
                 })
                 .catch(function () { /* ignore */ });
         }
-        if (typeof pendingUrl !== 'undefined') {
+        if (pendingUrl) {
+            refreshPending(pendingUrl);
             setInterval(function () { refreshPending(pendingUrl); }, 30000);
         }
     };

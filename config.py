@@ -48,7 +48,10 @@ RATING_DATE_SOURCE = os.environ.get("RATING_DATE_SOURCE", "delivered_at")
 RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
 
 FLASK_ENV = os.environ.get("FLASK_ENV", "development")
-FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"
+# Безопасный по умолчанию режим: debug включается только явно (FLASK_DEBUG=1
+# в .env для разработки). Раньше дефолт был "1" — деплой без переменной
+# окружения поднимал приложение с debug (отключённые CSP/HSTS/Secure-куки).
+FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 
 # Базовый флаг Secure-куки. Фактическое значение пересчитывается на каждый запрос
 # (см. app/__init__.py): Secure-куку нельзя ставить на чистом HTTP, иначе браузер

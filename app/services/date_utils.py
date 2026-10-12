@@ -12,7 +12,7 @@ def parse_iso_date(value: str) -> date | None:
         return None
 
 
-def period_bounds(period: str, today: date | None = None):
+def period_bounds(period: str, today: date | None = None) -> tuple[date | None, date | None]:
     """Return (start_date, end_date) for preset periods."""
     today = today or datetime.utcnow().date()
     if period == "day":
@@ -24,7 +24,9 @@ def period_bounds(period: str, today: date | None = None):
     return None, None
 
 
-def date_range_bounds(date_from: str = "", date_to: str = "", period: str = ""):
+def date_range_bounds(
+    date_from: str = "", date_to: str = "", period: str = ""
+) -> tuple[datetime | None, datetime | None]:
     """Return (start, end) half-open interval for filtering."""
     start_date = parse_iso_date(date_from)
     end_date = parse_iso_date(date_to)

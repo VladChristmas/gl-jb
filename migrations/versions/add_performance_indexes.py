@@ -13,6 +13,7 @@ Indexes added:
 - ix_orders_user_created: композитный для user_id + created_at
 """
 import logging
+
 import sqlalchemy as sa
 from alembic import op
 

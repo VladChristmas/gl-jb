@@ -1,12 +1,19 @@
+import base64
+import binascii
 import hmac
 import io
+import json
 import os
 import time
+import uuid
 from datetime import datetime
+from pathlib import Path
+from typing import Any, cast
 
 import openpyxl
 from flask import (
     Blueprint,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -20,7 +27,7 @@ from openpyxl import Workbook
 from sqlalchemy import func
 
 from app.constants import PHOTO_REQUIRED_TOPICS, ROLE_ADMIN, ROLE_COURIER, ROLE_LABELS, USER_ROLES
-from app.extensions import db, limiter
+from app.extensions import csrf, db, limiter
 from app.models import ImportMapping, User
 from app.services.audit_service import AuditService
 from app.services.complaint_service import ComplaintService
@@ -32,6 +39,7 @@ from app.services.order_service import OrderService
 from app.services.photo_service import PhotoService
 from app.services.rating_service import RatingService
 from app.services.user_service import UserService
+from app.utils.audit import audit_logger, safe_text
 from config import ADMIN_TOKEN, UPLOAD_FOLDER
 
 # Period values for filtering
@@ -45,7 +53,7 @@ _UPLOAD_SIZE_TTL = 60.0
 
 def _upload_size(upload_folder: str) -> int:
     """Размер uploads/ в байтах, кэшированный на 60 секунд, чтобы не дергать os.walk на каждый запрос (P2-11)."""
-    now = time.time()
+    now = time.monotonic()
     if now - float(_UPLOAD_SIZE_CACHE["ts"]) < _UPLOAD_SIZE_TTL:
         return int(_UPLOAD_SIZE_CACHE["value"])
 
@@ -59,6 +67,88 @@ def _upload_size(upload_folder: str) -> int:
     _UPLOAD_SIZE_CACHE["ts"] = now
     _UPLOAD_SIZE_CACHE["value"] = size
     return size
+
+
+# Отчёт об ошибках импорта (P2): полный список храним на диске,
+# в session-cookie — только указатель. Иначе кука >4093 байт и браузеры
+# молча её отбрасывают (отчёт и ссылка на скачивание пропадают).
+
+
+def _import_report_dir() -> Path:
+    path = Path(current_app.instance_path) / "import_reports"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _drop_import_report_file() -> None:
+    """Удаляет файл отчёта, на который указывает текущая сессия (если есть)."""
+    pointer = session.get("import_report") or {}
+    report_id = pointer.get("id") if isinstance(pointer, dict) else None
+    if report_id:
+        try:
+            (_import_report_dir() / f"{report_id}.json").unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _purge_old_import_reports(max_age_seconds: int = 24 * 3600) -> None:
+    """Убирает осиротевшие отчёты (сессия так и не пришла за скачиванием)."""
+    try:
+        cutoff = time.time() - max_age_seconds
+        for path in _import_report_dir().glob("*.json"):
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _store_import_report(report: dict[str, Any]) -> None:
+    """Полный отчёт — на диск, в сессии — указатель ~150 байт."""
+    _purge_old_import_reports()
+    _drop_import_report_file()
+    report_id = uuid.uuid4().hex
+    try:
+        (_import_report_dir() / f"{report_id}.json").write_text(
+            json.dumps(report, ensure_ascii=False), encoding="utf-8"
+        )
+        session["import_report"] = {
+            "id": report_id,
+            "file": report.get("file", "—"),
+            "generated_at": report.get("generated_at", ""),
+            "total_errors": len(report.get("errors", [])),
+        }
+    except OSError:
+        # Диск недоступен: оставляем в куке только начало отчёта,
+        # чтобы она не превысила лимит и не была отброшена браузером
+        session["import_report"] = {
+            **report,
+            "errors": report.get("errors", [])[:50],
+            "total_errors": len(report.get("errors", [])),
+        }
+
+
+def _pop_import_report() -> dict[str, Any] | None:
+    """Забирает отчёт из сессии и удаляет его с диска (одноразовое скачивание)."""
+    pointer = session.pop("import_report", None)
+    if not pointer:
+        return None
+    report_id = pointer.get("id") if isinstance(pointer, dict) else None
+    if not report_id:
+        # Аварийный режим: отчёт целиком лежал в сессии
+        report = cast(dict[str, Any], pointer)
+        report.setdefault("total_errors", len(report.get("errors", [])))
+        return report
+    try:
+        path = _import_report_dir() / f"{report_id}.json"
+        report = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+        path.unlink(missing_ok=True)
+        report.setdefault("total_errors", len(report.get("errors", [])))
+        return report
+    except (OSError, ValueError, TypeError):
+        return {**pointer, "errors": []}
 
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -85,6 +175,23 @@ def admin_required(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def _admin_session_valid() -> bool:
+    """Админ-сессия для JSON API: роль перепроверяется в БД, как в admin_required.
+
+    Без этого отзыв прав не действовал на /admin/api/* (счётчик, уведомления,
+    список файлов, восстановление фото) до истечения сессии.
+    """
+    if not session.get("is_admin"):
+        return False
+    user_id = session.get("user_id")
+    if user_id:
+        user = db.session.get(User, user_id)
+        if user is None or user.role != ROLE_ADMIN:
+            session.clear()
+            return False
+    return True
 
 
 @admin_bp.route("/")
@@ -554,14 +661,15 @@ def export_photo_control():
     )
 
 
-@admin_bp.route("/complaint/<int:complaint_id>")
+@admin_bp.route("/complaint/<int:complaint_id>", methods=["GET", "POST"])
 @admin_required
 def complaint_detail(complaint_id):
     """Детальная карточка жалобы с фото и управлением статусом."""
     from app.models.complaint import Complaint
 
-    complaint = db.session.query(Complaint).get_or_404(complaint_id)
-    order = complaint.order
+    complaint = db.get_or_404(Complaint, complaint_id)
+    # связи моделей типизированы динамически (relationship/backref), mypy их не видит
+    order = cast(Any, complaint.order)
     user = order.user
 
     if request.method == "POST" and request.form.get("action") == "change_status":
@@ -572,7 +680,7 @@ def complaint_detail(complaint_id):
             complaint.status = new_status if new_status else None
             from app.services.complaint_service import ComplaintService
 
-            ComplaintService.sync_mirror(complaint.order)
+            ComplaintService.sync_mirror(order)
             db.session.commit()
             flash(f'Статус изменен: {old_status or "—"} → {new_status or "—"}', "success")
             return redirect(url_for("admin.complaint_detail", complaint_id=complaint_id))
@@ -599,10 +707,10 @@ def complaint_detail(complaint_id):
 
 
 @admin_bp.route("/api/pending_count")
-@limiter.exempt
+@limiter.limit("120 per minute")
 def api_pending_count():
     """Живой счётчик заказов, ждущих подтверждения (для polling на дашборде)."""
-    if not session.get("is_admin"):
+    if not _admin_session_valid():
         return jsonify({"error": "forbidden"}), 403
     return jsonify({"pending": DashboardService.pending_orders_count()})
 
@@ -614,7 +722,7 @@ def api_notifications():
 
     Возвращает вычисляемые уведомления с дедупликацией через sessionStorage на клиенте.
     """
-    if not session.get("is_admin"):
+    if not _admin_session_valid():
         return jsonify({"error": "forbidden"}), 403
 
     # Get seen keys from query param (client sends comma-separated list)
@@ -636,13 +744,14 @@ def api_notifications():
 
 
 @admin_bp.route("/api/files")
+@limiter.limit("60 per minute")
 def api_files():
     """List uploaded files — used by the PC sync script.
 
     Auth: admin session OR X-Admin-Token header with the superadmin token.
     """
     token = request.headers.get("X-Admin-Token", "")
-    if not session.get("is_admin") and not (
+    if not _admin_session_valid() and not (
         token and ADMIN_TOKEN and hmac.compare_digest(token, ADMIN_TOKEN)
     ):
         return jsonify({"error": "unauthorized"}), 401
@@ -661,6 +770,77 @@ def api_files():
                     }
                 )
     return jsonify({"files": files, "count": len(files)})
+
+
+@admin_bp.route("/api/photos/restore", methods=["POST"])
+@limiter.limit("60 per minute")
+@csrf.exempt
+def api_photos_restore():
+    """Restore photos from the PC backup (scripts/push_photos.ps1).
+
+    Body: {"files": [{"name": str, "data": base64}], "overwrite": bool}
+    Auth: admin session OR X-Admin-Token header (same as /admin/api/files).
+    """
+    token = request.headers.get("X-Admin-Token", "")
+    if not _admin_session_valid() and not (
+        token and ADMIN_TOKEN and hmac.compare_digest(token, ADMIN_TOKEN)
+    ):
+        return jsonify({"error": "unauthorized"}), 401
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "bad body"}), 400
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        return jsonify({"error": "files must be a non-empty list"}), 400
+    overwrite = bool(payload.get("overwrite"))
+
+    uploaded = 0
+    skipped = 0
+    bytes_written = 0
+    conflicts = []
+    failed = []
+
+    for item in files:
+        if not isinstance(item, dict):
+            failed.append({"name": None, "reason": "элемент должен быть объектом"})
+            continue
+        name = item.get("name")
+        name_err = PhotoService.restore_name_error(name)
+        if name_err:
+            failed.append({"name": name if isinstance(name, str) else None, "reason": name_err})
+            continue
+        assert isinstance(name, str)  # restore_name_error отфильтровал не-str
+        raw = item.get("data")
+        if not isinstance(raw, str):
+            failed.append({"name": name, "reason": "нет данных файла"})
+            continue
+        try:
+            data = base64.b64decode(raw, validate=True)
+        except (binascii.Error, ValueError):
+            failed.append({"name": name, "reason": "некорректный base64"})
+            continue
+        status, reason = PhotoService.restore_file(name, data, overwrite=overwrite)
+        if status == "uploaded":
+            uploaded += 1
+            bytes_written += len(data)
+        elif status == "skipped":
+            skipped += 1
+        elif status == "conflict":
+            conflicts.append({"name": name, "reason": reason})
+        else:
+            failed.append({"name": name, "reason": reason})
+
+    audit_logger.info("photo restore total=%s uploaded=%s", len(files), uploaded)
+    return jsonify(
+        {
+            "uploaded": uploaded,
+            "skipped": skipped,
+            "bytes": bytes_written,
+            "conflicts": conflicts,
+            "failed": failed,
+        }
+    )
 
 
 @admin_bp.route("/users", methods=["GET", "POST"])
@@ -730,6 +910,7 @@ def regenerate_token(user_id):
 
 
 @admin_bp.route("/upload_excel", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 @admin_required
 def upload_excel():
     if request.method == "POST":
@@ -840,6 +1021,7 @@ def delete_import_mapping(mapping_id):
 
 
 @admin_bp.route("/import_excel", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 @admin_required
 def import_excel():
     mappings = ImportMapping.query.order_by(ImportMapping.type, ImportMapping.name).all()
@@ -865,23 +1047,30 @@ def import_excel():
             return redirect(url_for("admin.import_excel"))
 
         mapping = ImportMapping.query.get_or_404(mapping_id)
+        safe_file = safe_text(file.filename)
+
+        audit_logger.info("import start file=%s mapping=%s", safe_file, mapping.id)
 
         try:
             result = ImportService.import_with_mapping(file, mapping)
 
             # Сохраняем отчёт для скачивания только если есть ошибки
             if result.get("errors"):
-                session["import_report"] = {
-                    "file": file.filename,
-                    "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "imported": result.get("imported", 0),
-                    "updated": result.get("updated", 0),
-                    "skipped": result.get("skipped", 0),
-                    "duplicates": result.get("duplicates", 0),
-                    "errors": result.get("errors", []),
-                }
+                _store_import_report(
+                    {
+                        "file": file.filename,
+                        "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "imported": result.get("imported", 0),
+                        "updated": result.get("updated", 0),
+                        "skipped": result.get("skipped", 0),
+                        "duplicates": result.get("duplicates", 0),
+                        "errors": result.get("errors", []),
+                        "total_errors": len(result.get("errors", [])),
+                    }
+                )
             else:
-                # Чистый импорт — удаляем старый отчёт
+                # Чистый импорт — удаляем старый отчёт (файл + указатель в сессии)
+                _drop_import_report_file()
                 session.pop("import_report", None)
 
             msg = f'Импорт завершён. Создано: {result.get("imported", 0)}, обновлено: {result.get("updated", 0)}, пропущено: {result.get("skipped", 0)}.'
@@ -898,8 +1087,24 @@ def import_excel():
                 ),
             )
 
+            audit_logger.info(
+                "import end file=%s mapping=%s imported=%d updated=%d skipped=%d errors=%d",
+                safe_file,
+                mapping.id,
+                result.get("imported", 0),
+                result.get("updated", 0),
+                result.get("skipped", 0),
+                len(result.get("errors") or []),
+            )
+
         except Exception as e:
             db.session.rollback()
+            audit_logger.warning(
+                "import failed file=%s mapping=%s reason=%s",
+                safe_file,
+                mapping.id,
+                safe_text(e),
+            )
             flash(f"Ошибка при обработке файла: {str(e)}", "error")
 
         return redirect(url_for("admin.import_excel"))
@@ -983,14 +1188,16 @@ def import_excel_confirm():
 def import_report():
     """Скачивание отчёта об ошибках последнего импорта.
 
-    Отчёт хранится в сессии после импорта через import_excel.
-    Если отчёта нет — редирект на страницу импорта.
+    Указатель на отчёт хранится в сессии, сам файл — на диске (см.
+    _store_import_report). Если отчёта нет — редирект на страницу импорта.
     """
-    report = session.pop("import_report", None)
+    report = _pop_import_report()
     if not report:
         return redirect(url_for("admin.import_excel"))
 
     # Формируем текстовый отчёт
+    errors = report.get("errors", [])
+    total_errors = report.get("total_errors") or len(errors)
     lines = []
     lines.append(f"Файл: {report.get('file', '—')}")
     lines.append(f"Дата: {report.get('generated_at', '—')}")
@@ -998,15 +1205,14 @@ def import_report():
         f"Создано: {report.get('imported', 0)}, обновлено: {report.get('updated', 0)}, пропущено: {report.get('skipped', 0)}"
     )
     lines.append(f"Дублей: {report.get('duplicates', 0)}")
-    lines.append(f"Всего ошибок: {len(report.get('errors', []))}")
+    lines.append(f"Всего ошибок: {total_errors}")
     lines.append("")
 
-    errors = report.get("errors", [])
     # Показываем первые 1000 ошибок + сводку
     for i, error in enumerate(errors[:1000]):
         lines.append(f"{i + 1}. {error}")
-    if len(errors) > 1000:
-        lines.append(f"... и ещё {len(errors) - 1000} ошибок")
+    if total_errors > 1000:
+        lines.append(f"... и ещё {total_errors - 1000} ошибок")
 
     output = "\n".join(lines)
     return send_file(

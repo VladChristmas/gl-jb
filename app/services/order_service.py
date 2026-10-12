@@ -253,7 +253,10 @@ class OrderService:
             if order.order_number != order_number.strip():
                 changes["order_number"] = (order.order_number, order_number.strip())
             if order.description != (description.strip() if description else ""):
-                changes["description"] = (order.description, description.strip() if description else "")
+                changes["description"] = (
+                    order.description,
+                    description.strip() if description else "",
+                )
             order.order_number = order_number.strip()
             order.description = description.strip() if description else ""
             db.session.commit()

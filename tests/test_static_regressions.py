@@ -31,13 +31,16 @@ def test_mobile_tables_can_switch_to_card_view():
     """P3-3: вместо скролла колонок — карточки с подписями из thead."""
     css = _read("app/static/style.css")
     html = _read("app/templates/base.html")
+    # P3-3: JS перенесён из inline-блока base.html в utils.js (base.html его подключает)
+    js = _read("app/static/utils.js")
 
     assert ".is-cards" in css, "нет стилей карточного вида таблиц"
     assert "attr(data-label)" in css, "значения ячеек не подписаны заголовками"
     assert "@media (max-width: 768px)" in css
 
-    assert "is-cards" in html, "JS не включает карточный вид на мобильных"
-    assert "data-label" in html, "заголовки колонок не копируются в data-label"
+    assert "utils.js" in html, "base.html больше не подключает utils.js"
+    assert "is-cards" in js, "JS не включает карточный вид на мобильных"
+    assert "data-label" in js, "заголовки колонок не копируются в data-label"
     # Деградация без JS: карточки включаются только классом,
     # обычная таблица со скроллом должна остаться рабочей
     assert ".table-wrap table.is-cards" in css

@@ -4,14 +4,17 @@ Provides structured logging to database (AuditLog table) and querying.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from flask import has_request_context, request, session
 from flask_sqlalchemy.pagination import Pagination
+from flask_sqlalchemy.query import Query as FSQuery
 from sqlalchemy import desc, func, or_
 
 from app.extensions import db
 from app.models.audit_log import AuditLog
+from app.models.complaint import Complaint
+from app.models.order import Order
 from app.models.user import User
 from app.utils.audit import safe_text
 
@@ -52,7 +55,11 @@ class AuditService:
         """Get IP and request ID from current request."""
         if not has_request_context() or not request:
             return None, None
-        ip = request.remote_addr or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or None
+        ip = (
+            request.remote_addr
+            or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or None
+        )
         req_id = request.headers.get("X-Request-ID") or None
         return ip, req_id
 
@@ -106,7 +113,9 @@ class AuditService:
         return entry
 
     @classmethod
-    def log_order_create(cls, order, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_order_create(
+        cls, order: Order, user_id: int | None = None, user_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_CREATE,
             object_type=cls.OBJECT_ORDER,
@@ -118,23 +127,35 @@ class AuditService:
         )
 
     @classmethod
-    def log_order_update(cls, order, changes: dict, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_order_update(
+        cls, order: Order, changes: dict, user_id: int | None = None, user_fio: str | None = None
+    ) -> AuditLog:
         diff = {}
         for field, (old, new) in changes.items():
             if old != new:
-                diff[field] = {"old": str(old) if old is not None else None, "new": str(new) if new is not None else None}
+                diff[field] = {
+                    "old": str(old) if old is not None else None,
+                    "new": str(new) if new is not None else None,
+                }
         return cls.log(
             action_type=cls.ACTION_UPDATE,
             object_type=cls.OBJECT_ORDER,
             object_id=order.order_number or str(order.id),
-            description=f"Изменён заказ: {order.order_number or order.id}" + (f" ({', '.join(diff.keys())})" if diff else ""),
+            description=f"Изменён заказ: {order.order_number or order.id}"
+            + (f" ({', '.join(diff.keys())})" if diff else ""),
             diff=diff if diff else None,
             user_id=user_id,
             user_fio=user_fio,
         )
 
     @classmethod
-    def log_order_delete(cls, order_id: int, order_number: str | None, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_order_delete(
+        cls,
+        order_id: int,
+        order_number: str | None,
+        user_id: int | None = None,
+        user_fio: str | None = None,
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_DELETE,
             object_type=cls.OBJECT_ORDER,
@@ -145,7 +166,14 @@ class AuditService:
         )
 
     @classmethod
-    def log_complaint_create(cls, order, complaint_text: str, status: str | None, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_complaint_create(
+        cls,
+        order: Order,
+        complaint_text: str,
+        status: str | None,
+        user_id: int | None = None,
+        user_fio: str | None = None,
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_CREATE,
             object_type=cls.OBJECT_COMPLAINT,
@@ -157,11 +185,20 @@ class AuditService:
         )
 
     @classmethod
-    def log_complaint_update(cls, complaint, changes: dict, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_complaint_update(
+        cls,
+        complaint: Complaint,
+        changes: dict,
+        user_id: int | None = None,
+        user_fio: str | None = None,
+    ) -> AuditLog:
         diff = {}
         for field, (old, new) in changes.items():
             if old != new:
-                diff[field] = {"old": str(old) if old is not None else None, "new": str(new) if new is not None else None}
+                diff[field] = {
+                    "old": str(old) if old is not None else None,
+                    "new": str(new) if new is not None else None,
+                }
         return cls.log(
             action_type=cls.ACTION_UPDATE,
             object_type=cls.OBJECT_COMPLAINT,
@@ -173,7 +210,9 @@ class AuditService:
         )
 
     @classmethod
-    def log_photo_upload(cls, order, photo_id: int, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_photo_upload(
+        cls, order: Order, photo_id: int, user_id: int | None = None, user_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_UPLOAD,
             object_type=cls.OBJECT_PHOTO,
@@ -185,7 +224,14 @@ class AuditService:
         )
 
     @classmethod
-    def log_photo_delete(cls, photo_id: int, order_id: int, order_number: str | None, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_photo_delete(
+        cls,
+        photo_id: int,
+        order_id: int,
+        order_number: str | None,
+        user_id: int | None = None,
+        user_fio: str | None = None,
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_DELETE,
             object_type=cls.OBJECT_PHOTO,
@@ -196,7 +242,14 @@ class AuditService:
         )
 
     @classmethod
-    def log_import(cls, mapping_name: str, mapping_type: str, result: dict, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_import(
+        cls,
+        mapping_name: str,
+        mapping_type: str,
+        result: dict,
+        user_id: int | None = None,
+        user_fio: str | None = None,
+    ) -> AuditLog:
         """Log import as a single entry with summary counts."""
         return cls.log(
             action_type=cls.ACTION_IMPORT,
@@ -217,7 +270,9 @@ class AuditService:
         )
 
     @classmethod
-    def log_import_failed(cls, mapping_name: str, error: str, user_id: int | None = None, user_fio: str | None = None) -> AuditLog:
+    def log_import_failed(
+        cls, mapping_name: str, error: str, user_id: int | None = None, user_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_IMPORT,
             object_type=cls.OBJECT_IMPORT,
@@ -229,7 +284,9 @@ class AuditService:
         )
 
     @classmethod
-    def log_user_create(cls, user, actor_id: int | None = None, actor_fio: str | None = None) -> AuditLog:
+    def log_user_create(
+        cls, user: User, actor_id: int | None = None, actor_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_CREATE,
             object_type=cls.OBJECT_USER,
@@ -241,7 +298,14 @@ class AuditService:
         )
 
     @classmethod
-    def log_user_role_change(cls, user, old_role: str, new_role: str, actor_id: int | None = None, actor_fio: str | None = None) -> AuditLog:
+    def log_user_role_change(
+        cls,
+        user: User,
+        old_role: str,
+        new_role: str,
+        actor_id: int | None = None,
+        actor_fio: str | None = None,
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_ROLE_CHANGE,
             object_type=cls.OBJECT_USER,
@@ -253,7 +317,9 @@ class AuditService:
         )
 
     @classmethod
-    def log_user_delete(cls, user_fio: str, user_id: int, actor_id: int | None = None, actor_fio: str | None = None) -> AuditLog:
+    def log_user_delete(
+        cls, user_fio: str, user_id: int, actor_id: int | None = None, actor_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_DELETE,
             object_type=cls.OBJECT_USER,
@@ -264,7 +330,9 @@ class AuditService:
         )
 
     @classmethod
-    def log_user_token_regen(cls, user, actor_id: int | None = None, actor_fio: str | None = None) -> AuditLog:
+    def log_user_token_regen(
+        cls, user: User, actor_id: int | None = None, actor_fio: str | None = None
+    ) -> AuditLog:
         return cls.log(
             action_type=cls.ACTION_TOKEN_REGEN,
             object_type=cls.OBJECT_USER,
@@ -309,27 +377,34 @@ class AuditService:
                 dt_to = datetime.strptime(date_to, "%Y-%m-%d")
                 # Include entire end day
                 from datetime import timedelta
+
                 dt_to = dt_to + timedelta(days=1)
                 query = query.filter(AuditLog.created_at < dt_to)
             except ValueError:
                 pass
         if search:
             like = f"%{search}%"
-            query = query.filter(or_(
-                AuditLog.description.ilike(like),
-                AuditLog.object_id.ilike(like),
-                AuditLog.user_fio.ilike(like),
-            ))
+            query = query.filter(
+                or_(
+                    AuditLog.description.ilike(like),
+                    AuditLog.object_id.ilike(like),
+                    AuditLog.user_fio.ilike(like),
+                )
+            )
 
         query = query.order_by(desc(AuditLog.created_at), desc(AuditLog.id))
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        # runtime: db.session.query(...) -> flask_sqlalchemy.Query (есть .paginate),
+        # статические типы SQLAlchemy видят RowReturningQuery без .paginate
+        pagination = cast(FSQuery, query).paginate(page=page, per_page=per_page, error_out=False)
 
         rows = []
         for log, user in pagination.items:
-            rows.append({
-                "log": log,
-                "user": user,
-            })
+            rows.append(
+                {
+                    "log": log,
+                    "user": user,
+                }
+            )
 
         return pagination, rows
 
@@ -338,7 +413,12 @@ class AuditService:
         """Get distinct values for filter dropdowns."""
         action_types = db.session.query(AuditLog.action_type).distinct().all()
         object_types = db.session.query(AuditLog.object_type).distinct().all()
-        users = db.session.query(User.id, User.fio).filter(User.fio.isnot(None)).order_by(User.fio).all()
+        users = (
+            db.session.query(User.id, User.fio)
+            .filter(User.fio.isnot(None))
+            .order_by(User.fio)
+            .all()
+        )
 
         return {
             "action_types": [a[0] for a in action_types if a[0]],
@@ -350,9 +430,24 @@ class AuditService:
     def get_stats(cls) -> dict:
         """Get summary statistics for the audit dashboard."""
         total = db.session.query(func.count(AuditLog.id)).scalar() or 0
-        by_action = dict(db.session.query(AuditLog.action_type, func.count(AuditLog.id)).group_by(AuditLog.action_type).all())
-        by_object = dict(db.session.query(AuditLog.object_type, func.count(AuditLog.id)).group_by(AuditLog.object_type).all())
-        by_user = dict(db.session.query(AuditLog.user_fio, func.count(AuditLog.id)).filter(AuditLog.user_fio.isnot(None)).group_by(AuditLog.user_fio).order_by(func.count(AuditLog.id).desc()).limit(10).all())
+        by_action = dict(
+            db.session.query(AuditLog.action_type, func.count(AuditLog.id))
+            .group_by(AuditLog.action_type)
+            .all()
+        )
+        by_object = dict(
+            db.session.query(AuditLog.object_type, func.count(AuditLog.id))
+            .group_by(AuditLog.object_type)
+            .all()
+        )
+        by_user = dict(
+            db.session.query(AuditLog.user_fio, func.count(AuditLog.id))
+            .filter(AuditLog.user_fio.isnot(None))
+            .group_by(AuditLog.user_fio)
+            .order_by(func.count(AuditLog.id).desc())
+            .limit(10)
+            .all()
+        )
 
         return {
             "total": total,

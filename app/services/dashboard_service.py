@@ -2,6 +2,7 @@
 import re
 from collections import Counter
 from datetime import date, datetime, time, timedelta
+from typing import Any
 
 from flask import url_for
 from openpyxl import Workbook
@@ -172,8 +173,8 @@ class DashboardService:
             orders_with_photos = orders_with_photos.filter(Order.created_at >= start)
         if end:
             orders_with_photos = orders_with_photos.filter(Order.created_at < end)
-        orders_with_photos = orders_with_photos.scalar() or 0
-        orders_without_photos = orders_count - orders_with_photos
+        orders_with_photos_count = orders_with_photos.scalar() or 0
+        orders_without_photos = orders_count - orders_with_photos_count
         pending_query = (
             db.session.query(Order, User)
             .join(User, Order.user_id == User.id)
@@ -214,7 +215,7 @@ class DashboardService:
             .all()
         )
         completion_rate = round(
-            (orders_with_photos / orders_count * 100) if orders_count > 0 else 0, 1
+            (orders_with_photos_count / orders_count * 100) if orders_count > 0 else 0, 1
         )
         orders_with_complaints_query = db.session.query(func.count(Order.id)).filter(
             has_complaint_clause()
@@ -251,7 +252,7 @@ class DashboardService:
             "couriers_count": couriers_count,
             "orders_count": orders_count,
             "photos_count": photos_count,
-            "orders_with_photos": orders_with_photos,
+            "orders_with_photos": orders_with_photos_count,
             "orders_without_photos": orders_without_photos,
             "pending_count": pending_count,
             "orders_with_complaints": orders_with_complaints,
@@ -384,12 +385,9 @@ class DashboardService:
         latest_orders = Order.query.filter(Order.id.in_(latest_ids)).all()
         latest_map = {order.id: order for order in latest_orders}
 
-        # Only load picker users, not all users
-        picker_fios = [str(row.picker_fio).strip().lower() for row in agg_rows]
-        users_map = {
-            user.fio.strip().lower(): user
-            for user in User.query.filter(func.lower(User.fio).in_(picker_fios)).all()
-        }
+        # Only load picker users, not all users.
+        # Сопоставление в Python: SQLite lower() не работает с кириллицей.
+        users_map = {u.fio.strip().lower(): u for u in User.query.all()}
 
         result = []
         for row in agg_rows:
@@ -469,10 +467,16 @@ class DashboardService:
             .first()
         )
 
-        total_orders = int(counts.total_orders or 0)
-        confirmed = int(counts.confirmed or 0)
-        total_photos = int(counts.total_photos or 0)
-        pending = int(counts.pending or 0)
+        if counts is None:
+            total_orders = 0
+            confirmed = 0
+            total_photos = 0
+            pending = 0
+        else:
+            total_orders = int(counts.total_orders or 0)
+            confirmed = int(counts.confirmed or 0)
+            total_photos = int(counts.total_photos or 0)
+            pending = int(counts.pending or 0)
 
         # Completion percentage
         completion_pct = round((confirmed / total_orders * 100) if total_orders > 0 else 100, 1)
@@ -553,13 +557,19 @@ class DashboardService:
         target = (fio or "").strip().lower()
         if not target:
             return None
-        # Прямой запрос вместо загрузки всех distinct значений
-        row = (
+        # Сравнение в Python: SQLite lower() не понимает кириллицу (ASCII-only),
+        # поэтому SQL-фильтр lower(...) == target не находит русские ФИО.
+        # Distinct-значений мало (число сборщиков), полный обход дёшев.
+        rows = (
             db.session.query(Order.picker_fio)
-            .filter(Order.picker_fio.isnot(None), func.lower(Order.picker_fio) == target)
-            .first()
+            .filter(Order.picker_fio.isnot(None), Order.picker_fio != "")
+            .distinct()
+            .all()
         )
-        return str(row[0]).strip() if row and row[0] else None
+        for (value,) in rows:
+            if str(value).strip().lower() == target:
+                return str(value).strip()
+        return None
 
     @staticmethod
     def picker_dashboard(user: User) -> dict:
@@ -763,11 +773,11 @@ class AnalyticsService:
 
         # Разбивка по фото-требуемым темам
         photo_breakdown = cls._match_known_topics(list(reason_counts.keys()))
-        photo_breakdown = sorted(photo_breakdown.items(), key=lambda x: x[1], reverse=True)
+        photo_breakdown_sorted = sorted(photo_breakdown.items(), key=lambda x: x[1], reverse=True)
 
         return {
             "top_reasons": top_reasons,
-            "photo_required_breakdown": photo_breakdown,
+            "photo_required_breakdown": photo_breakdown_sorted,
             "total_complaints": len(rows),
             "total_orders_with_complaints": len(orders_with_complaints),
         }
@@ -947,7 +957,7 @@ class AnalyticsService:
         known_order = ["открыта", "в работе", "закрыта"]
         labels = {"открыта": "Открыта", "в работе": "В работе", "закрыта": "Закрыта"}
 
-        named = {}
+        named: dict[str, int] = {}
         unnamed_total = 0
         for status_value, count in rows:
             key = (status_value or "").strip()
@@ -1020,7 +1030,7 @@ class AnalyticsService:
             if not matched_any and reasons:
                 other_count += len(reasons)
 
-        result = [
+        result: list[dict[str, Any]] = [
             {"topic": topic, "count": count} for topic, count in topic_counts.items() if count > 0
         ]
         result.sort(key=lambda x: -x["count"])

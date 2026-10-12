@@ -26,16 +26,18 @@ class NotificationService:
         # 1. Orders awaiting required photos
         pending_count = DashboardService.pending_orders_count()
         if pending_count > 0:
-            notifications.append(NotificationService._make_notification(
-                ntype="pending_photos",
-                title="Заказы ждут фото-подтверждения",
-                severity="high",
-                description=f"{pending_count} заказ(ов) с обязательной фото-подтемой не имеют загруженных фото",
-                target_url="/admin/photos?problem=required_missing",
-                target_label="Открыть список",
-                entity_id="global",
-                count=pending_count,
-            ))
+            notifications.append(
+                NotificationService._make_notification(
+                    ntype="pending_photos",
+                    title="Заказы ждут фото-подтверждения",
+                    severity="high",
+                    description=f"{pending_count} заказ(ов) с обязательной фото-подтемой не имеют загруженных фото",
+                    target_url="/admin/photos?problem=required_missing",
+                    target_label="Открыть список",
+                    entity_id="global",
+                    count=pending_count,
+                )
+            )
 
         # 2. Complaints spike (weekly)
         complaints_spike = NotificationService._check_complaints_spike()
@@ -50,16 +52,18 @@ class NotificationService:
         # 4. Mirror-only complaints (legacy data not hydrated)
         mirror_count = ComplaintService.mirror_only_count()
         if mirror_count > 0:
-            notifications.append(NotificationService._make_notification(
-                ntype="mirror_only_complaints",
-                title="Необработанные жалобы в зеркале",
-                severity="low",
-                description=f"{mirror_count} заказ(ов) имеют жалобы только в старом поле complaint_text",
-                target_url="/admin/complaints",
-                target_label="Открыть жалобы",
-                entity_id="global",
-                count=mirror_count,
-            ))
+            notifications.append(
+                NotificationService._make_notification(
+                    ntype="mirror_only_complaints",
+                    title="Необработанные жалобы в зеркале",
+                    severity="low",
+                    description=f"{mirror_count} заказ(ов) имеют жалобы только в старом поле complaint_text",
+                    target_url="/admin/complaints",
+                    target_label="Открыть жалобы",
+                    entity_id="global",
+                    count=mirror_count,
+                )
+            )
 
         # Sort: high > medium > low, then by time desc
         severity_order = {"high": 0, "medium": 1, "low": 2}
@@ -97,19 +101,21 @@ class NotificationService:
             report = RatingService.week_report()
             for row in report.get("rows", []):
                 if row.get("direction") == "Ухудшение":
-                    notifications.append(NotificationService._make_notification(
-                        ntype="courier_quality_drop",
-                        title=f"Ухудшение качества: {row['fio']}",
-                        severity="medium",
-                        description=(
-                            f"Балл упал с {row['prev']['quality_score']:.1f} до {row['quality_score']:.1f} "
-                            f"(жалобы: {row['prev']['orders_with_complaints']} → {row['orders_with_complaints']})"
-                        ),
-                        target_url="/admin/couriers",
-                        target_label="Открыть рейтинг",
-                        entity_id=row["fio"],
-                        count=1,
-                    ))
+                    notifications.append(
+                        NotificationService._make_notification(
+                            ntype="courier_quality_drop",
+                            title=f"Ухудшение качества: {row['fio']}",
+                            severity="medium",
+                            description=(
+                                f"Балл упал с {row['prev']['quality_score']:.1f} до {row['quality_score']:.1f} "
+                                f"(жалобы: {row['prev']['orders_with_complaints']} → {row['orders_with_complaints']})"
+                            ),
+                            target_url="/admin/couriers",
+                            target_label="Открыть рейтинг",
+                            entity_id=row["fio"],
+                            count=1,
+                        )
+                    )
         except Exception:
             # Rating service may fail if no data — silently skip
             pass

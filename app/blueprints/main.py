@@ -12,6 +12,10 @@ main_bp = Blueprint("main", __name__)
 
 @main_bp.route("/")
 def index():
+    if session.get("is_admin"):
+        return redirect(url_for("admin.dashboard"))
+    if session.get("user_id"):
+        return redirect(url_for("user.dashboard"))
     return redirect(url_for("auth.unified_login"))
 
 

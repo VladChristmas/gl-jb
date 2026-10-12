@@ -1,8 +1,6 @@
 """Smoke tests for /admin/photos (photo_control) page."""
 
-import pytest
 from app.models import Order, Photo
-from app.services.order_service import OrderService
 
 
 class TestPhotoControlSmoke:
@@ -85,10 +83,16 @@ class TestPhotoControlSmoke:
         order_without = Order(user_id=regular_user.id, order_number=f"{marker}-NOPHOTO")
         db_session.add_all([order_with, order_without])
         db_session.commit()
-        db_session.add(Photo(order_id=order_with.id, filename=f"{marker}.jpg", original_filename=f"{marker}.jpg"))
+        db_session.add(
+            Photo(
+                order_id=order_with.id, filename=f"{marker}.jpg", original_filename=f"{marker}.jpg"
+            )
+        )
         db_session.commit()
 
-        resp = admin_client.get("/admin/photos", query_string={"search": marker, "problem": "no_photos"})
+        resp = admin_client.get(
+            "/admin/photos", query_string={"search": marker, "problem": "no_photos"}
+        )
         html = resp.get_data(as_text=True)
         assert f"{marker}-NOPHOTO" in html
         assert f"{marker}-HASPHOTO" not in html

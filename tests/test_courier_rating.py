@@ -498,6 +498,11 @@ class TestRoutesAndAccess:
 class TestKpi:
     def test_kpi_summarizes_only_the_selected_week(self, db_session, regular_user, set_min_orders):
         set_min_orders(1)
+        # Недатированные заказы других курьеров (сессионная БД) не привязаны к
+        # неделе и всегда попадают в KPI — фиксируем базовый уровень.
+        baseline_without_date = RatingService.week_report(W1.isoformat())["kpi"][
+            "orders_without_date"
+        ]
         fio = _marker()
         for i in range(3):
             make_order(
@@ -514,7 +519,7 @@ class TestKpi:
         assert kpi["orders_total"] == 3
         assert kpi["orders_with_complaints"] == 1
         assert kpi["complaint_rate"] == pytest.approx(33.3)
-        assert kpi["orders_without_date"] == 0
+        assert kpi["orders_without_date"] == baseline_without_date
 
     def test_kpi_rate_is_none_dash_without_orders(self, db_session, set_min_orders, admin_client):
         set_min_orders(1)

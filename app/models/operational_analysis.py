@@ -1,7 +1,7 @@
 from app.extensions import db
 
 
-class OperationalAnalysisSession(db.Model):
+class OperationalAnalysisSession(db.Model):  # type: ignore[name-defined]
     __tablename__ = "operational_analysis_sessions"
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
@@ -21,7 +21,7 @@ class OperationalAnalysisSession(db.Model):
         return f"<OperationalAnalysisSession {self.id}: {self.filename}>"
 
 
-class PickerMetrics(db.Model):
+class PickerMetrics(db.Model):  # type: ignore[name-defined]
     __tablename__ = "picker_metrics"
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(
@@ -57,7 +57,7 @@ class PickerMetrics(db.Model):
         return f"<PickerMetrics {self.picker_fio}: {self.unique_orders} orders>"
 
 
-class AssemblyOrder(db.Model):
+class AssemblyOrder(db.Model):  # type: ignore[name-defined]
     __tablename__ = "assembly_orders"
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(
@@ -88,7 +88,7 @@ class AssemblyOrder(db.Model):
         return f"<AssemblyOrder {self.order_id}: {self.picker_fio}>"
 
 
-class DataQualityIssue(db.Model):
+class DataQualityIssue(db.Model):  # type: ignore[name-defined]
     __tablename__ = "data_quality_issues"
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(

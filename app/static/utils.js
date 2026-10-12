@@ -14,13 +14,26 @@
 // Utility functions
 window.GLB = window.GLB || {};
 
+// Экранирование HTML: данные из сервера/Excel вставляются через innerHTML
+GLB.escapeHtml = function (value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
 GLB.showToast = function (message, actionLabel, actionFn, duration) {
     duration = duration || 5000;
     var container = document.getElementById('toast-container');
     if (!container) return;
     var toast = document.createElement('div');
     toast.className = 'toast';
-    toast.innerHTML = '<span>' + message + '</span>';
+    var span = document.createElement('span');
+    span.textContent = message; // textContent, не innerHTML: message может содержать ФИО и т.п.
+    toast.appendChild(span);
     if (actionLabel && actionFn) {
         var btn = document.createElement('button');
         btn.className = 'toast-action';
@@ -48,6 +61,9 @@ GLB.confirmDelete = function (form, message, event) {
     GLB.showToast(message, 'Удалить', function () { form.submit(); }, 5000);
     return false;
 };
+// Глобальные алиасы: в шаблонах обработчики onsubmit вызывают confirmDelete(...) без GLB.
+// Без алиаса бросался ReferenceError, и форма удалялась без подтверждения.
+window.confirmDelete = GLB.confirmDelete;
 
 // Debounced live search — auto-submit form after typing pause
 GLB.enableLiveSearch = function (inputId, formSelector) {

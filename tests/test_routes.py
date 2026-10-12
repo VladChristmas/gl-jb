@@ -6,6 +6,29 @@ class TestAuthRoutes:
         resp = client.get("/login")
         assert resp.status_code == 200
 
+    def test_root_redirects_anonymous_to_login(self, client):
+        resp = client.get("/")
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["Location"]
+
+    def test_root_redirects_admin_to_admin_dashboard(self, admin_client):
+        """Логотип (brand -> main.index) не должен разлогинивать админа."""
+        resp = admin_client.get("/")
+        assert resp.status_code == 302
+        assert "/admin/" in resp.headers["Location"]
+        # сессия сохранена: dashboard доступен сразу после перехода
+        dash = admin_client.get("/admin/")
+        assert dash.status_code == 200
+
+    def test_root_redirects_user_to_user_dashboard(self, auth_client):
+        """Логотип (brand -> main.index) не должен разлогинивать пользователя."""
+        resp = auth_client.get("/")
+        assert resp.status_code == 302
+        assert "/dashboard" in resp.headers["Location"]
+        # сессия сохранена: dashboard доступен сразу после перехода
+        dash = auth_client.get("/dashboard")
+        assert dash.status_code == 200
+
     def test_admin_login_page(self, client):
         resp = client.get("/admin/login")
         assert resp.status_code == 200
@@ -140,3 +163,42 @@ class TestAdminRoutes:
         # Check user was deleted
         deleted = User.query.get(user_id)
         assert deleted is None
+
+
+class TestAdminApiRoleRecheck:
+    """P2: /admin/api/* перепроверяет роль администратора в БД.
+
+    Раньше эти эндпоинты проверяли только session["is_admin"]: отзыв прав
+    не действовал до истечения сессии.
+    """
+
+    def _revoked_admin_session(self, client, user):
+        with client.session_transaction() as sess:
+            sess["is_admin"] = True
+            sess["user_id"] = user.id
+
+    def test_pending_count_rejects_revoked_role(self, client, regular_user):
+        # regular_user.role по умолчанию = courier (не админ)
+        self._revoked_admin_session(client, regular_user)
+        assert client.get("/admin/api/pending_count").status_code == 403
+        # сессия очищена после отзыва — повторный запрос тоже отказ
+        assert client.get("/admin/api/pending_count").status_code == 403
+
+    def test_notifications_rejects_revoked_role(self, client, regular_user):
+        self._revoked_admin_session(client, regular_user)
+        assert client.get("/admin/api/notifications").status_code == 403
+
+    def test_files_rejects_revoked_role(self, client, regular_user):
+        self._revoked_admin_session(client, regular_user)
+        assert client.get("/admin/api/files").status_code == 401
+
+    def test_restore_rejects_revoked_role(self, client, regular_user):
+        self._revoked_admin_session(client, regular_user)
+        resp = client.post("/admin/api/photos/restore", json={"files": []})
+        assert resp.status_code == 401
+
+    def test_api_works_for_admin_with_db_role(self, client, admin_user, db_session):
+        admin_user.role = "admin"
+        db_session.commit()
+        self._revoked_admin_session(client, admin_user)
+        assert client.get("/admin/api/pending_count").status_code == 200

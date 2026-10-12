@@ -144,7 +144,12 @@
     </nav>
     {% endif %}
 
-    <script>
     {% block extra_scripts %}{% endblock %}
+    <script>
+        // Регистрация Service Worker: файл лежит в /static/, но должен управлять
+        // всем приложением (scope '/') — заголовок Service-Worker-Allowed ставит
+        // app/__init__.py. Без регистрации PWA/offline не работают.
+        GLB.registerServiceWorker("{{ url_for('static', filename='sw.js') }}");
+    </script>
 </body>
 </html>

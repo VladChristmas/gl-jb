@@ -385,6 +385,7 @@ class TestCouriersRoute:
         assert resp.status_code == 302
 
     def test_couriers_page_renders(self, admin_client, db_session, regular_user):
+        monday = week_monday(None)
         db_session.add(
             Order(
                 user_id=regular_user.id,
@@ -392,7 +393,7 @@ class TestCouriersRoute:
                 external_id="PH-3",
                 courier_fio="Курьер Тестов",
                 address="ул. Тестовая, 1",
-                delivered_at="05.10.2026 12:00",
+                delivered_at=monday.strftime("%d.%m.%Y 12:00"),
                 complaint_text="Товар побит/вскрыт",
             )
         )
@@ -401,30 +402,35 @@ class TestCouriersRoute:
         resp = admin_client.get("/admin/couriers")
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
-        assert "Дашборд курьеров" in html
+        # Этап 17: страница переведена в «Рейтинг курьеров» (KPI, недели)
+        assert "Рейтинг курьеров" in html
+        assert "Заказов в периоде" in html
+        # Курьер с заказом текущей недели попадает в блок «Недостаточно данных»
         assert "Курьер Тестов" in html
-        assert "ул. Тестовая, 1" in html
-        assert "Запросить фото" in html
+        # Счётчик ждущих фото (жалоба с фото-подтемой без фото)
+        assert "Ожидают фото" in html
+        # Навигация по неделям
+        assert "Сейчас" in html
 
     def test_photo_button_hidden_for_other_topics(self, admin_client, db_session, regular_user):
-        db_session.add(
-            Order(
-                user_id=regular_user.id,
-                order_number="PH-4",
-                complaint_text="Товар побит/вскрыт",
-            )
+        """Фото-бейдж «ждём фото» — только для фото-подтем (жалобы, §4)."""
+        order_photo = Order(
+            user_id=regular_user.id, order_number="PH-4", complaint_text="Товар побит/вскрыт"
         )
-        db_session.add(
-            Order(
-                user_id=regular_user.id,
-                order_number="PH-5",
-                complaint_text="Предиктив доставка",
-            )
+        order_other = Order(
+            user_id=regular_user.id, order_number="PH-5", complaint_text="Предиктив доставка"
         )
+        db_session.add_all([order_photo, order_other])
+        db_session.commit()
+        db_session.add(Complaint(order_id=order_photo.id, text="Товар побит/вскрыт", status="new"))
+        db_session.add(Complaint(order_id=order_other.id, text="Предиктив доставка", status="new"))
         db_session.commit()
 
-        html = admin_client.get("/admin/couriers").get_data(as_text=True)
-        assert html.count("Запросить фото") == 1
+        html = admin_client.get("/admin/complaints?search=PH-4").get_data(as_text=True)
+        assert html.count("ждём фото") == 1
+
+        html = admin_client.get("/admin/complaints?search=PH-5").get_data(as_text=True)
+        assert "ждём фото" not in html
 
     def test_couriers_page_shows_rating_card(self, admin_client, db_session, regular_user):
         # Правило §4: заказ участвует в неделе только с распознанной датой доставки —
@@ -922,19 +928,29 @@ class TestDashboardRestructure:
         assert "Запросить фото" not in html
 
     def test_couriers_table_keeps_actions_on_mobile(self, admin_client, db_session, regular_user):
-        db_session.add(
-            Order(
-                user_id=regular_user.id,
-                order_number="MB-1",
-                courier_fio="Курьер Мобильный",
-                complaint_text="Товар побит/вскрыт",
+        """Мобильный вид: таблица заменяется карточками со ссылкой на курьера."""
+        admin_client.application.config["RATING_MIN_ORDERS"] = 1
+        try:
+            monday = week_monday(None)
+            db_session.add(
+                Order(
+                    user_id=regular_user.id,
+                    order_number="MB-1",
+                    courier_fio="Курьер Мобильный",
+                    delivered_at=monday.strftime("%d.%m.%Y 12:00"),
+                    complaint_text="Товар побит/вскрыт",
+                )
             )
-        )
-        db_session.commit()
+            db_session.commit()
 
-        html = admin_client.get("/admin/couriers").get_data(as_text=True)
-        assert "table-keep-actions" in html
-        assert "Запросить фото" in html
+            html = admin_client.get("/admin/couriers").get_data(as_text=True)
+            assert 'id="desktop-table"' in html
+            assert 'id="mobile-cards"' in html
+            assert "courier-card" in html
+            # карточка ведёт на детальную страницу курьера
+            assert "/admin/courier/" in html
+        finally:
+            admin_client.application.config["RATING_MIN_ORDERS"] = 10
 
 
 class TestCouriersAwaitingCount:

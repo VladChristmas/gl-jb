@@ -25,7 +25,9 @@ def ods_to_xlsx_bytes(ods_path: str) -> bytes:
     wb.remove(wb.active)
 
     for sheet_name in xl.sheet_names:
-        df = pd.read_excel(xl, sheet_name=sheet_name, header=0)
+        # dtype=str: без него pandas приводит текстовые ID вида "001" к int 1
+        # (потеря ведущих нулей -> рассинхрон связывания между листами)
+        df = pd.read_excel(xl, sheet_name=sheet_name, header=0, dtype=str)
         ws = wb.create_sheet(title=sheet_name)
         ws.append([str(c) if c is not None else "" for c in df.columns])
         for row in df.itertuples(index=False, name=None):
@@ -47,8 +49,9 @@ def ods_to_xlsx_bytes(ods_path: str) -> bytes:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Импорт ODS в operational analysis")
     parser.add_argument("ods_path", help="Путь к .ods файлу")
-    parser.add_argument("--wait-threshold", type=int, default=None,
-                        help="Порог ожидания, мин (по умолчанию 30)")
+    parser.add_argument(
+        "--wait-threshold", type=int, default=None, help="Порог ожидания, мин (по умолчанию 30)"
+    )
     args = parser.parse_args()
 
     ods_path = Path(args.ods_path)
@@ -57,17 +60,36 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Читаю ODS: {ods_path}")
-    xlsx_bytes = ods_to_xlsx_bytes(str(ods_path))
+    try:
+        xlsx_bytes = ods_to_xlsx_bytes(str(ods_path))
+    except Exception as exc:  # noqa: BLE001 - единая точка обработки ошибок CLI
+        print(f"Не удалось прочитать ODS-файл: {type(exc).__name__}: {exc}")
+        print("Проверьте, что файл является корректным OpenDocument Spreadsheet (.ods).")
+        sys.exit(1)
     print(f"Конвертировано в XLSX: {len(xlsx_bytes)} байт")
 
     from app import create_app
+    from app.extensions import db
     from app.services.operational_analysis_service import OperationalAnalysisService
 
     app = create_app()
     with app.app_context():
         buf = io.BytesIO(xlsx_bytes)
         buf.filename = ods_path.name  # type: ignore[attr-defined]
-        session = OperationalAnalysisService.analyze_file(buf, wait_threshold=args.wait_threshold)
+        try:
+            session = OperationalAnalysisService.analyze_file(
+                buf, wait_threshold=args.wait_threshold
+            )
+        except Exception as exc:  # noqa: BLE001 - единая точка обработки ошибок CLI
+            # Откатываем незавершённую сессию, чтобы в истории не осталось status=processing
+            db.session.rollback()
+            print(f"Анализ не завершён: {type(exc).__name__}: {exc}")
+            print("Результаты не сохранены.")
+            sys.exit(1)
+
+        if session.status != "completed":
+            print(f"Анализ завершился со статусом: {session.status}")
+            sys.exit(1)
 
         print(f"\n=== Сессия #{session.id}: {session.filename} ===")
         print(f"Статус: {session.status}")
@@ -78,9 +100,11 @@ def main() -> None:
 
         from app.models.operational_analysis import PickerMetrics
 
-        metrics = PickerMetrics.query.filter_by(session_id=session.id).order_by(
-            PickerMetrics.unique_orders.desc()
-        ).all()
+        metrics = (
+            PickerMetrics.query.filter_by(session_id=session.id)
+            .order_by(PickerMetrics.unique_orders.desc())
+            .all()
+        )
         print(f"\nСборщиков: {len(metrics)}")
         for m in metrics[:15]:
             print(

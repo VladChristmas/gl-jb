@@ -47,6 +47,9 @@ logs/
 .coverage
 htmlcov/
 
+# Server-side storage of import error reports (session cookie size limit)
+instance/import_reports/
+
 # Distribution
 dist/
 build/

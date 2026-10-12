@@ -1,8 +1,11 @@
 import os
 import uuid
 from datetime import datetime
+from typing import Any, cast
 
 import magic
+from flask_sqlalchemy.pagination import Pagination
+from flask_sqlalchemy.query import Query as FSQuery
 from sqlalchemy import func
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -276,20 +279,20 @@ class PhotoService:
             orders_with_photos = orders_with_photos.filter(Order.created_at >= start)
         if end:
             orders_with_photos = orders_with_photos.filter(Order.created_at < end)
-        orders_with_photos = orders_with_photos.scalar() or 0
+        orders_with_photos_count = orders_with_photos.scalar() or 0
 
-        orders_without_photos = orders_count - orders_with_photos
+        orders_without_photos = orders_count - orders_with_photos_count
 
-        pending_count = (
+        pending_count_query = (
             db.session.query(func.count(Order.id))
             .outerjoin(Photo, Photo.order_id == Order.id)
             .filter(Photo.id.is_(None), _photo_required_clause())
         )
         if start:
-            pending_count = pending_count.filter(Order.created_at >= start)
+            pending_count_query = pending_count_query.filter(Order.created_at >= start)
         if end:
-            pending_count = pending_count.filter(Order.created_at < end)
-        pending_count = pending_count.scalar() or 0
+            pending_count_query = pending_count_query.filter(Order.created_at < end)
+        pending_count = pending_count_query.scalar() or 0
 
         corrupted_query = db.session.query(Photo).join(Order, Photo.order_id == Order.id)
         if start:
@@ -306,7 +309,7 @@ class PhotoService:
 
         return {
             "orders_count": orders_count,
-            "orders_with_photos": orders_with_photos,
+            "orders_with_photos": orders_with_photos_count,
             "orders_without_photos": orders_without_photos,
             "pending_count": pending_count,
             "corrupted_count": corrupted_count,
@@ -323,8 +326,7 @@ class PhotoService:
         search: str = "",
         page: int = 1,
         per_page: int = 20,
-    ):
-        from flask_sqlalchemy.pagination import Pagination
+    ) -> tuple[Pagination, list[dict[str, Any]]]:
 
         from app.services.date_utils import date_range_bounds
 
@@ -358,7 +360,9 @@ class PhotoService:
 
         query = query.group_by(Order.id, User.id).order_by(Order.created_at.desc(), Order.id.desc())
 
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        # runtime: db.session.query(...) -> flask_sqlalchemy.Query (есть .paginate),
+        # статические типы SQLAlchemy видят RowReturningQuery без .paginate
+        pagination = cast(FSQuery, query).paginate(page=page, per_page=per_page, error_out=False)
 
         order_ids = [item[0].id for item in pagination.items]
         photo_counts = PhotoService.counts_by_order(order_ids)

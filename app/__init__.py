@@ -128,6 +128,16 @@ def create_app():
         app.config["REMEMBER_COOKIE_SECURE"] = secure
         talisman.session_cookie_secure = secure
 
+    # Service Worker должен управлять всем приложением (scope '/'), но файл
+    # отдаётся из /static/ — без этого заголовка браузер отклонит регистрацию
+    # с широким scope (nginx в данном проекте проксирует /static/ в Flask,
+    # поэтому заголовок доходит и в проде).
+    @app.after_request
+    def _service_worker_scope(response):
+        if request.path == "/static/sw.js":
+            response.headers["Service-Worker-Allowed"] = "/"
+        return response
+
     from app.blueprints.admin import admin_bp
     from app.blueprints.auth import auth_bp
     from app.blueprints.main import main_bp

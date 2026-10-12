@@ -13,8 +13,20 @@ os.environ["MAIL_USERNAME"] = ""
 os.environ["MAIL_PASSWORD"] = ""
 
 from app import create_app
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import Order, User
+
+
+@pytest.fixture(autouse=True)
+def _isolate_rate_limits(app):
+    """Изоляция rate-лимитов: memory-storage общий для всех тестов сессии.
+
+    Зависимость от app гарантирует, что limiter.init_app уже выполнен
+    (иначе reset() падает на assert self._storage).
+    """
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture(scope="session")
