@@ -582,3 +582,218 @@ class TestJsRegressions:
             assert page_errors == [], f"JS-ошибки: {page_errors}"
         finally:
             context.close()
+
+
+# ===== PWA install guide (логотип -> модалка установки) =====
+
+UA_IPHONE_SAFARI = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+)
+UA_IPAD_SAFARI = (
+    "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+)
+UA_IPHONE_CHROME = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) CriOS/125.0.6422.80 Mobile/15E148 Safari/604.1"
+)
+UA_IPADOS_DESKTOP = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+)
+UA_ANDROID_CHROME = (
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.6422.147 Mobile Safari/537.36"
+)
+UA_DESKTOP_CHROME = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+)
+
+
+class TestDetectInstallPlatform:
+    """Чистая логика GLB.detectInstallPlatform — без обращения к DOM."""
+
+    @pytest.fixture
+    def detect(self, browser, live_server):
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            page.goto(f"{live_server}/login")
+
+            def _run(ua, options=None):
+                result = page.evaluate(
+                    "([ua, opts]) => GLB.detectInstallPlatform(ua, opts)",
+                    [ua, options or {}],
+                )
+                assert page_errors == [], f"JS-ошибки: {page_errors}"
+                return result
+
+            yield _run
+        finally:
+            context.close()
+
+    def test_iphone_safari(self, detect):
+        info = detect(UA_IPHONE_SAFARI)
+        assert info["platform"] == "ios-safari"
+        assert info["canNativePrompt"] is False
+        assert info["hasDeferredPrompt"] is False
+
+    def test_ipad_safari(self, detect):
+        info = detect(UA_IPAD_SAFARI)
+        assert info["platform"] == "ios-safari"
+        assert info["canNativePrompt"] is False
+
+    def test_iphone_chrome_is_not_safari(self, detect):
+        info = detect(UA_IPHONE_CHROME)
+        assert info["platform"] == "ios-other"
+        assert info["canNativePrompt"] is False
+
+    def test_ipados_desktop_ua_with_touch(self, detect):
+        """iPadOS 13+ маскируется под macOS — различаем по touch-точкам."""
+        info = detect(UA_IPADOS_DESKTOP, {"ipadOsDesktop": True})
+        assert info["platform"] == "ios-safari"
+        assert info["canNativePrompt"] is False
+
+    def test_macos_without_touch_is_desktop(self, detect):
+        info = detect(UA_IPADOS_DESKTOP)
+        assert info["platform"] == "desktop"
+
+    def test_android_chrome_with_prompt(self, detect):
+        info = detect(UA_ANDROID_CHROME, {"hasDeferredPrompt": True})
+        assert info["platform"] == "android"
+        assert info["canNativePrompt"] is True
+        assert info["hasDeferredPrompt"] is True
+
+    def test_android_chrome_without_prompt(self, detect):
+        info = detect(UA_ANDROID_CHROME)
+        assert info["platform"] == "android"
+        assert info["canNativePrompt"] is False
+
+    def test_desktop_chrome(self, detect):
+        info = detect(UA_DESKTOP_CHROME, {"hasDeferredPrompt": True})
+        assert info["platform"] == "desktop"
+        assert info["canNativePrompt"] is True
+
+    def test_standalone_flag_propagates(self, detect):
+        info = detect(UA_IPHONE_SAFARI, {"standalone": True})
+        assert info["standalone"] is True
+
+
+class TestInstallGuideModal:
+    """Модалка установки: открытие по логотипу, закрытие, сессия не рвётся."""
+
+    def test_logo_click_opens_modal_and_session_survives(self, browser, live_server):
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            assert page.locator("#install-modal").is_hidden()
+
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            assert page.locator("#install-modal").is_visible(), "Модалка не открылась"
+            body = page.locator("#install-modal-body").inner_text()
+            assert body.strip(), "Модалка пустая"
+            # Headless Chromium на десктопе — не iOS
+            assert "На экран Домой" not in body, "Десктопу показывается iOS-инструкция"
+
+            # Сессия не разорвана: та же страница, /admin отвечает 200
+            assert "/admin" in page.url
+            resp = page.request.get(f"{live_server}/admin")
+            assert resp.ok, f"После клика по логотипу /admin недоступен: {resp.status}"
+
+            page.locator("#install-modal-close").click()
+            page.wait_for_timeout(100)
+            assert page.locator("#install-modal").is_hidden(), "Модалка не закрылась"
+
+            # Повторное открытие
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            assert page.locator("#install-modal").is_visible(), "Повторное открытие не работает"
+
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_unauthorized_user_can_open_guide_without_breaking_login(self, browser, live_server):
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            page.goto(f"{live_server}/login")
+            assert page.locator("#install-modal").is_hidden()
+
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            assert page.locator("#install-modal").is_visible()
+
+            page.locator("#install-modal-close").click()
+            # Форма входа на месте, редирект/сброс сессии не произошли
+            assert page.locator("#token").count() == 1
+            assert "/login" in page.url
+
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_overlay_click_and_escape_close_modal(self, browser, live_server):
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            page.goto(f"{live_server}/login")
+
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            page.locator("#install-modal").click(position={"x": 5, "y": 5})
+            page.wait_for_timeout(100)
+            assert page.locator("#install-modal").is_hidden(), "Клик по оверлею не закрыл модалку"
+
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(100)
+            assert page.locator("#install-modal").is_hidden(), "Escape не закрыл модалку"
+
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_modal_fits_mobile_viewport(self, browser, live_server):
+        mobile = {"width": 320, "height": 568}
+        context, page, page_errors = _new_session(browser, mobile)
+        try:
+            page.goto(f"{live_server}/login")
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            assert page.locator("#install-modal").is_visible()
+            _assert_no_horizontal_scroll(page, "install-modal@320")
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_standalone_shows_already_installed(self, browser, live_server):
+        """В standalone-режиме — «уже установлен», без кнопки prompt."""
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            page.goto(f"{live_server}/login")
+            page.evaluate(
+                """() => {
+                    const orig = window.matchMedia;
+                    window.matchMedia = function (q) {
+                        if (String(q).indexOf('standalone') !== -1) {
+                            return { matches: true, media: q, addEventListener() {}, removeEventListener() {} };
+                        }
+                        return orig.apply(window, arguments);
+                    };
+                    GLB._deferredInstallPrompt = { prompt() {}, userChoice: Promise.resolve({}) };
+                }"""
+            )
+            page.locator(".topbar .brand").click()
+            page.wait_for_timeout(150)
+            body = page.locator("#install-modal-body").inner_text()
+            assert "уже установлен" in body.lower()
+            assert (
+                page.locator("#install-native-btn").count() == 0
+            ), "В standalone не должна показываться кнопка установки"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()

@@ -22,12 +22,13 @@
     })();
     </script>
     <script src="{{ url_for('static', filename='utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='install.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body{% if session.is_admin or session.user_id %} class="has-bottom-nav"{% endif %}>
     <header class="topbar">
         <div class="topbar-inner">
-            <a class="brand" href="{{ url_for('main.index') }}">
+            <a class="brand" id="brand-home" href="{{ url_for('main.index') }}">
                 <span class="brand-mark">GL</span>
                 GL_JB <span class="brand-sub">Фото заказов</span>
             </a>
@@ -54,6 +55,21 @@
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
+
+    <!-- PWA install guide: открывается кликом по логотипу (см. install.js).
+         Без JS логотип продолжает вести на главную (href сохранён). -->
+    <div class="modal-overlay" id="install-modal" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="install-modal-title">
+            <div class="modal-head">
+                <h2 id="install-modal-title">Установить GL_JB</h2>
+                <button type="button" class="modal-close" id="install-modal-close" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body" id="install-modal-body"></div>
+            <div class="modal-actions">
+                <a class="btn btn-secondary" href="{{ url_for('main.index') }}">На главную</a>
+            </div>
+        </div>
+    </div>
 
     {% if session.is_admin or session.user_id %}
     {# Нижняя навигация: только существующие маршруты, различия по ролям.

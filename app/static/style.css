@@ -4005,3 +4005,134 @@ textarea:focus-visible,
         justify-content: flex-end;
     }
 }
+
+/* ===== PWA install modal (logo tap) ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal {
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 480px;
+    max-height: min(80vh, 560px);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-light);
+    animation: modal-slide-up 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modal-slide-up {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@media (min-width: 640px) {
+    .modal-overlay {
+        align-items: center;
+    }
+
+    .modal {
+        border-radius: var(--radius-lg);
+    }
+
+    @keyframes modal-slide-up {
+        from { transform: translateY(12px) scale(0.98); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+}
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 16px 8px;
+}
+
+.modal-head h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal-close {
+    appearance: none;
+    border: none;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition), color var(--transition);
+    flex-shrink: 0;
+}
+
+.modal-close:hover,
+.modal-close:focus-visible {
+    background: var(--hover-bg);
+    color: var(--text);
+}
+
+.modal-body {
+    padding: 8px 16px 16px;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.modal-body p {
+    margin: 0 0 12px;
+}
+
+.modal-body .install-steps {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+
+.modal-body .install-steps li {
+    margin-bottom: 8px;
+}
+
+.modal-body .btn {
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.modal-actions {
+    padding: 0 16px 16px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.modal-actions .btn {
+    width: auto;
+}
+
+@media (max-width: 480px) {
+    .modal-actions .btn {
+        width: 100%;
+    }
+}
