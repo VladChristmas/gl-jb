@@ -886,7 +886,7 @@ class AnalyticsService:
         # Агрегация по курьерам: заказы + жалобы
         query = (
             db.session.query(
-                Order.courier_fio,
+                func.trim(Order.courier_fio),
                 func.count(Order.id).label("orders_count"),
                 func.count(Complaint.id).label("complaints_count"),
             )
@@ -1047,7 +1047,7 @@ class AnalyticsService:
 
         # Курьеры с жалобами
         couriers = (
-            db.session.query(Order.courier_fio, func.count(Complaint.id))
+            db.session.query(func.trim(Order.courier_fio), func.count(Complaint.id))
             .outerjoin(Complaint, Complaint.order_id == Order.id)
             .filter(Order.courier_fio.isnot(None), Order.courier_fio != "")
             .group_by(func.trim(Order.courier_fio))
@@ -1241,6 +1241,7 @@ class WeeklyReportService:
                 "label": "Заказов",
                 "value": orders_count,
                 "delta": orders_count - orders_prev_count,
+                "pct": None,
                 "link": url_for("admin.orders", period="week"),
             },
             {
@@ -1261,11 +1262,14 @@ class WeeklyReportService:
                 "label": "Жалоб (шт.)",
                 "value": complaints_count,
                 "delta": complaints_count - complaints_prev_count,
+                "pct": None,
                 "link": url_for("admin.complaints", period="week"),
             },
             {
                 "label": "% заказов с жалобами",
                 "value": cls._fmt_pct(orders_with_complaints, orders_count),
+                "delta": None,
+                "pct": None,
                 "delta_pct": complaints_rate_delta,
                 "link": url_for("admin.couriers", week=monday.isoformat()),
             },

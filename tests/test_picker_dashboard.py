@@ -850,10 +850,10 @@ class TestDashboardRestructure:
         assert resp.status_code == 200
         assert resp.get_json()["pending"] == 1
 
-        # После логаута — 403
+        # После логаута — 401 (единый статус /admin/api/* без админ-сессии)
         admin_client.get("/admin/logout")
         resp = admin_client.get("/admin/api/pending_count")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_block_order(self, admin_client, db_session, regular_user):
         db_session.add(

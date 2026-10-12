@@ -67,6 +67,15 @@ class TestServiceWorker:
         src = (TEMPLATES / "base.html").read_text(encoding="utf-8")
         assert "GLB.registerServiceWorker(" in src
 
+    def test_register_passes_root_scope(self):
+        """F-04: register() без {scope:'/'} даёт scope /static/ — offline для
+        HTML-страниц не работает (заголовок Service-Worker-Allowed лишь разрешает)."""
+        src = (STATIC / "utils.js").read_text(encoding="utf-8")
+        assert (
+            "navigator.serviceWorker.register(swUrl, { scope: '/' })" in src
+        ), "Service Worker регистрируется без scope '/' — SW не будет управлять страницами"
+        assert "register(swUrl)" not in src.replace("register(swUrl, { scope: '/' })", "")
+
     def test_sw_script_response_allows_root_scope(self, app):
         client = app.test_client()
         resp = client.get("/static/sw.js")

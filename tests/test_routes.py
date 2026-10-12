@@ -180,9 +180,10 @@ class TestAdminApiRoleRecheck:
     def test_pending_count_rejects_revoked_role(self, client, regular_user):
         # regular_user.role по умолчанию = courier (не админ)
         self._revoked_admin_session(client, regular_user)
+        # сессия есть, но роль не админская → 403
         assert client.get("/admin/api/pending_count").status_code == 403
-        # сессия очищена после отзыва — повторный запрос тоже отказ
-        assert client.get("/admin/api/pending_count").status_code == 403
+        # сессия очищена после отзыва — повторный запрос: админ-сессии нет → 401
+        assert client.get("/admin/api/pending_count").status_code == 401
 
     def test_notifications_rejects_revoked_role(self, client, regular_user):
         self._revoked_admin_session(client, regular_user)
@@ -194,6 +195,14 @@ class TestAdminApiRoleRecheck:
 
     def test_restore_rejects_revoked_role(self, client, regular_user):
         self._revoked_admin_session(client, regular_user)
+        resp = client.post("/admin/api/photos/restore", json={"files": []})
+        assert resp.status_code == 401
+
+    def test_anonymous_api_returns_401_everywhere(self, client):
+        # Единый статус: без админ-сессии все /admin/api/* отвечают 401 (не 403).
+        assert client.get("/admin/api/pending_count").status_code == 401
+        assert client.get("/admin/api/notifications").status_code == 401
+        assert client.get("/admin/api/files").status_code == 401
         resp = client.post("/admin/api/photos/restore", json={"files": []})
         assert resp.status_code == 401
 

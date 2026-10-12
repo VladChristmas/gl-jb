@@ -260,7 +260,7 @@ class ComplaintService:
                 date_to=date_to,
                 period=period,
             )
-            .with_entities(Order.courier_fio, func.count(Complaint.id))
+            .with_entities(func.trim(Order.courier_fio), func.count(Complaint.id))
             .filter(Order.courier_fio.isnot(None), Order.courier_fio != "")
             .group_by(func.trim(Order.courier_fio))
             .order_by(func.count(Complaint.id).desc())

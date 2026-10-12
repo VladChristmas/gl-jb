@@ -175,7 +175,7 @@ GLB.initBottomNav = function () {
 GLB.registerServiceWorker = function (swUrl) {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
-            navigator.serviceWorker.register(swUrl)
+            navigator.serviceWorker.register(swUrl, { scope: '/' })
                 .then(function (registration) {
                     console.log('[SW] Registered:', registration.scope);
                 })

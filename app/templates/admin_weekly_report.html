@@ -34,10 +34,10 @@
 <!-- KPI Cards -->
 <div class="kpi-grid" role="list" aria-label="Ключевые показатели недели">
     {% for card in report.kpi_cards %}
-    <a href="{{ card.link }}" class="kpi-card {% if card.delta is not none and card.delta < 0 and card.label not in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is not none and card.delta > 0 and card.label in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is not none and card.delta > 0 %}kpi-success{% elif card.delta is not none and card.delta < 0 %}kpi-success{% else %}{% endif %}" role="listitem">
+    <a href="{{ card.link }}" class="kpi-card {% if card.delta is defined and card.delta is not none and card.delta < 0 and card.label not in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is defined and card.delta is not none and card.delta > 0 and card.label in ['Без фото', 'Заказов с жалобами', 'Жалоб (шт.)'] %}kpi-danger{% elif card.delta is defined and card.delta is not none and card.delta > 0 %}kpi-success{% elif card.delta is defined and card.delta is not none and card.delta < 0 %}kpi-success{% else %}{% endif %}" role="listitem">
         <span class="kpi-value">
-            {% if card.value is not none %}
-                {% if card.pct is not none %}
+            {% if card.value is defined and card.value is not none %}
+                {% if card.pct is defined and card.pct is not none %}
                     {{ card.value }} ({{ '%.1f'|format(card.pct) }}%)
                 {% else %}
                     {{ card.value }}
@@ -47,10 +47,10 @@
             {% endif %}
         </span>
         <span class="kpi-label">{{ card.label }}</span>
-        {% if card.delta is not none %}
+        {% if card.delta is defined and card.delta is not none %}
         <span class="kpi-hint">
             {% if card.delta > 0 %}+{% endif %}{{ card.delta }}
-            {% if card.delta_pct is not none %} ({{ '%+.1f'|format(card.delta_pct) }}%){% endif %}
+            {% if card.delta_pct is defined and card.delta_pct is not none %} ({{ '%+.1f'|format(card.delta_pct) }}%){% endif %}
         </span>
         {% endif %}
     </a>

@@ -194,6 +194,20 @@ def _admin_session_valid() -> bool:
     return True
 
 
+def _admin_api_auth_error():
+    """Проверка админ-сессии для JSON API.
+
+    Возвращает None при доступе или готовый ответ:
+    401 — админ-сессии нет вообще, 403 — сессия есть, но роль отозвана.
+    Единый статус для всех /admin/api/* (раньше был 401 или 403 вразнобой).
+    """
+    if not session.get("is_admin"):
+        return jsonify({"error": "unauthorized"}), 401
+    if not _admin_session_valid():
+        return jsonify({"error": "forbidden"}), 403
+    return None
+
+
 @admin_bp.route("/")
 @admin_required
 def dashboard():
@@ -710,8 +724,9 @@ def complaint_detail(complaint_id):
 @limiter.limit("120 per minute")
 def api_pending_count():
     """Живой счётчик заказов, ждущих подтверждения (для polling на дашборде)."""
-    if not _admin_session_valid():
-        return jsonify({"error": "forbidden"}), 403
+    auth_error = _admin_api_auth_error()
+    if auth_error is not None:
+        return auth_error
     return jsonify({"pending": DashboardService.pending_orders_count()})
 
 
@@ -722,8 +737,9 @@ def api_notifications():
 
     Возвращает вычисляемые уведомления с дедупликацией через sessionStorage на клиенте.
     """
-    if not _admin_session_valid():
-        return jsonify({"error": "forbidden"}), 403
+    auth_error = _admin_api_auth_error()
+    if auth_error is not None:
+        return auth_error
 
     # Get seen keys from query param (client sends comma-separated list)
     seen_param = request.args.get("seen", "", type=str)
