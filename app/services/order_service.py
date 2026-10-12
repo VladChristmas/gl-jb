@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import date, datetime, timedelta
 from typing import Any, cast
@@ -81,7 +82,49 @@ def _apply_photo_filter(query: Any, photo_filter: str) -> Any:
     return query
 
 
+# Технические поля в описании: латинский ключ + значение (legacy-импорт вида
+# «czf: ...; confirmed_at: ...; sla: 15; sum: 1777»). Человеческое описание —
+# русские метки («Адрес:», «Подтема:», «Дата:», «Время завершения:»).
+_TECH_FIELD_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]{0,30}\s*:\s*\S")
+
+
+def split_description(description: str | None) -> tuple[str, str]:
+    """Делит составное описание заказа на (человеческое, техническое).
+
+    Сегменты (разделители: перевод строки, «;», «|»), похожие на
+    «латинский_ключ: значение», считаются служебными полями импорта.
+    """
+    if not description:
+        return "", ""
+    human: list[str] = []
+    technical: list[str] = []
+    for raw in re.split(r"[\n;|]", description):
+        segment = raw.strip()
+        if not segment:
+            continue
+        if _TECH_FIELD_RE.match(segment):
+            technical.append(segment)
+        else:
+            human.append(segment)
+    return "; ".join(human), "; ".join(technical)
+
+
 class OrderService:
+    @staticmethod
+    def order_summary(order: Order | None) -> str:
+        """Короткое человекочитаемое описание заказа для списков.
+
+        Приоритет: адрес (отдельная колонка модели) -> человеческая часть
+        составного описания. Технические поля импорта («czf», «sla», «sum»…)
+        не показываются — только на странице заказа как «Технические данные».
+        """
+        if order is None:
+            return ""
+        if order.address:
+            return str(order.address)
+        human, _ = split_description(order.description)
+        return human
+
     @staticmethod
     def create_order(
         user_id: int, order_number: str, description: str, external_id: str | None = None
@@ -240,7 +283,12 @@ class OrderService:
         orders_with_users = []
         for order, user in pagination.items:
             orders_with_users.append(
-                {"order": order, "user": user, "photos_count": photo_counts.get(order.id, 0)}
+                {
+                    "order": order,
+                    "user": user,
+                    "photos_count": photo_counts.get(order.id, 0),
+                    "summary": OrderService.order_summary(order),
+                }
             )
 
         return pagination, orders_with_users

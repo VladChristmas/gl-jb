@@ -214,6 +214,20 @@ class DashboardService:
             .order_by(func.date(Order.created_at))
             .all()
         )
+        # Динамика жалоб по дням (P3-UX-3 аудита: вместо заглушки «в разработке»)
+        daily_complaints_query = db.session.query(
+            func.date(Complaint.created_at).label("day"),
+            func.count(Complaint.id).label("count"),
+        )
+        if start:
+            daily_complaints_query = daily_complaints_query.filter(Complaint.created_at >= start)
+        if end:
+            daily_complaints_query = daily_complaints_query.filter(Complaint.created_at < end)
+        daily_complaints = (
+            daily_complaints_query.group_by(func.date(Complaint.created_at))
+            .order_by(func.date(Complaint.created_at))
+            .all()
+        )
         completion_rate = round(
             (orders_with_photos_count / orders_count * 100) if orders_count > 0 else 0, 1
         )
@@ -262,6 +276,7 @@ class DashboardService:
             "completion_rate": completion_rate,
             "pending_orders": pending_orders,
             "daily_orders": daily_orders,
+            "daily_complaints": daily_complaints,
             "best_couriers": best_couriers,
             "best_pickers": best_pickers,
             "avg_courier_score": avg_courier_score,
@@ -1471,10 +1486,10 @@ class WeeklyReportService:
         complaints_map = {str(day): count for day, count in report["daily_complaints"]}
         all_days = sorted(set(orders_map.keys()) | set(complaints_map.keys()))
         for day in all_days:
-            o = orders_map.get(day, 0)
-            c = complaints_map.get(day, 0)
-            rate = round(c / o * 100, 1) if o > 0 else 0.0
-            ws4.append([day, o, c, rate])
+            o = int(orders_map.get(day, 0) or 0)
+            c = int(complaints_map.get(day, 0) or 0)
+            daily_rate = round(c / o * 100, 1) if o > 0 else 0.0
+            ws4.append([day, o, c, daily_rate])
 
         # Лист 5: Импорт
         if report["recent_imports"]:

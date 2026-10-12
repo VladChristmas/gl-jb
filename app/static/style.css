@@ -160,6 +160,15 @@ html[data-theme="system"] .theme-btn[data-theme-value="system"] {
     box-shadow: var(--shadow-sm);
 }
 
+@media (max-width: 768px) {
+    /* P3-UX-1 (аудит 2026-10): тач-цели переключателя темы были 26px —
+       доводим до нормы 44px на мобильных (на десктопе мышью управлять удобно). */
+    .theme-btn {
+        min-height: 44px;
+        padding: 8px 11px;
+    }
+}
+
 @media (max-width: 560px) {
     .topbar .brand-sub {
         display: none;
@@ -337,6 +346,14 @@ textarea:focus-visible,
 .btn-sm {
     padding: 8px 14px;
     font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    /* P3-UX-1 (аудит 2026-10): компактные кнопки («Назад», фильтры, действия в
+       таблицах) были 37px по высоте — на тач-экране доводим до 44px. */
+    .btn-sm {
+        min-height: 44px;
+    }
 }
 
 .btn-full {
@@ -534,6 +551,47 @@ textarea:focus-visible,
 
 .table tr:hover td {
     background: var(--surface-2);
+}
+
+/* P2-UX-1 (аудит 2026-10): ID и даты рвались по одной цифре на строку из-за
+   авто-ширин колонок. Держим такие колонки узкими и запрещаем перенос;
+   широкое содержимое уходит в горизонтальный скролл .table-wrap. */
+.table th[class*="col-"],
+.table td[class*="col-"] {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.table .badge {
+    white-space: nowrap;
+}
+
+/* P3-UX-5 (аудит 2026-10): нативный input[type=file] подписан по-английски
+   («Choose File / No file chosen») — прячем его за своей кнопкой и именем файла.
+   Скрытие визуальное (не display:none), поэтому required-валидация работает. */
+.file-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.file-input input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.file-input .file-input-name {
+    color: var(--text-secondary);
+    font-size: 14px;
+    word-break: break-all;
 }
 
 /* P3-3: карточный вид таблиц на узких экранах.
@@ -889,6 +947,27 @@ textarea:focus-visible,
 .order-info strong {
     color: var(--text);
     font-weight: 600;
+}
+
+/* Служебные поля импорта в описании заказа (F-05 UX-аудита) */
+.order-info .tech-fields {
+    margin-top: 4px;
+}
+
+.order-info .tech-fields > summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+}
+
+.order-info .tech-fields-body {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    word-break: break-word;
 }
 
 @media (min-width: 600px) {

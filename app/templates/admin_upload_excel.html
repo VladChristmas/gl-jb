@@ -22,8 +22,11 @@
 <form method="post" enctype="multipart/form-data" class="form-inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
-        <label for="excel_file">Выберите файл</label>
-        <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
+        <div class="file-input">
+            <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required data-file-input>
+            <label for="excel_file" class="btn btn-secondary">Выберите файл…</label>
+            <span class="file-input-name" data-file-name>Файл не выбран</span>
+        </div>
     </div>
     <button type="submit" class="btn btn-primary">Загрузить</button>
 </form>

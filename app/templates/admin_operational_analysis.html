@@ -17,8 +17,11 @@
     <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.operational_analysis_upload') }}" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group full-width">
-            <label for="excel_file">Файл Excel (.xlsx) *</label>
-            <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required>
+            <div class="file-input">
+                <input type="file" id="excel_file" name="excel_file" accept=".xlsx" required data-file-input>
+                <label for="excel_file" class="btn btn-secondary">Выберите файл…</label>
+                <span class="file-input-name" data-file-name>Файл не выбран</span>
+            </div>
         </div>
         <div class="form-group">
             <label for="wait_threshold">Порог ожидания (мин)</label>

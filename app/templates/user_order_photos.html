@@ -15,7 +15,13 @@
 <div class="order-info">
     <p><strong>Номер:</strong> {{ order.order_number }}</p>
     {% if order.address %}<p><strong>Адрес:</strong> {{ order.address }}</p>{% endif %}
-    <p><strong>Описание:</strong> {{ order.description }}</p>
+    {% if order.summary %}<p><strong>Описание:</strong> {{ order.summary }}</p>{% endif %}
+    {% if order.technical_description %}
+    <details class="tech-fields">
+        <summary>Технические данные заказа</summary>
+        <p class="tech-fields-body">{{ order.technical_description }}</p>
+    </details>
+    {% endif %}
 </div>
 
 {% if photos %}

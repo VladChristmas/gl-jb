@@ -35,7 +35,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.import_service import ImportService
 from app.services.notification_service import NotificationService
-from app.services.order_service import OrderService
+from app.services.order_service import OrderService, split_description
 from app.services.photo_service import PhotoService
 from app.services.rating_service import RatingService
 from app.services.user_service import UserService
@@ -213,16 +213,15 @@ def _admin_api_auth_error():
 def dashboard():
     stats = DashboardService.admin_stats()
 
-    upload_folder = os.path.abspath(UPLOAD_FOLDER)
     upload_size = 0
-    if os.path.exists(upload_folder):
-        for root, _dirs, files in os.walk(upload_folder):
+    if os.path.exists(UPLOAD_FOLDER):
+        for root, _dirs, files in os.walk(UPLOAD_FOLDER):
             for f in files:
                 fp = os.path.join(root, f)
                 if os.path.isfile(fp):
                     upload_size += os.path.getsize(fp)
 
-    stats["upload_folder"] = upload_folder
+    # P3-UX-6 (аудит 2026-10): внутренний путь (/app/uploads) не показываем в UI
     stats["upload_size"] = upload_size
 
     # Initial notifications for server-side render (client will poll for updates)
@@ -559,7 +558,6 @@ def export_weekly_report_excel():
 @admin_required
 def photo_control():
     """Страница контроля фотографий заказов."""
-    from app.services.order_service import OrderService
     from app.services.photo_service import PhotoService
 
     period = request.args.get("period", "week")
@@ -1345,6 +1343,8 @@ def order_photos(order_id):
         return redirect(url_for("admin.orders"))
 
     photos = PhotoService.get_order_photos(order_id)
+    # Человеческое описание + служебные поля импорта отдельным блоком (F-05)
+    order.summary, order.technical_description = split_description(order.description)
     return render_template("user_order_photos.html", order=order, photos=photos, admin_view=True)
 
 

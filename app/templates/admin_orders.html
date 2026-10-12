@@ -80,26 +80,26 @@
     <table class="table">
     <thead>
         <tr>
-            <th>№</th>
+            <th class="col-id">№</th>
             <th>Пользователь</th>
             <th>Номер заказа</th>
             <th>Описание</th>
             <th>Статус</th>
             <th>Фото</th>
-            <th>Создан</th>
+            <th class="col-date">Создан</th>
             <th>Действия</th>
         </tr>
     </thead>
     <tbody>
         {% for item in orders %}
         <tr>
-            <td>{{ item.order.id }}</td>
+            <td class="col-id">{{ item.order.id }}</td>
             <td>
                 <strong>{{ item.user.fio }}</strong><br>
                 <small><code>{{ item.user.token }}</code></small>
             </td>
             <td>{{ item.order.order_number }}</td>
-            <td>{{ item.order.description }}</td>
+            <td>{{ item.summary or '—' }}</td>
             <td>
                 {% if item.photos_count > 0 %}
                 <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 6px;">
@@ -124,7 +124,7 @@
                 <a href="{{ url_for('admin.order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
                 {% endif %}
             </td>
-            <td>{{ item.order.created_at }}</td>
+            <td class="col-date">{{ item.order.created_at }}</td>
             <td>
                 <a href="{{ url_for('admin.edit_order', order_id=item.order.id) }}" class="btn btn-sm btn-secondary">Редактировать</a>
                 {% if item.photos_count > 0 %}

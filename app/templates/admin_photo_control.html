@@ -111,9 +111,9 @@
     <table class='table'>
         <thead>
             <tr>
-                <th>№</th>
+                <th class='col-id'>№</th>
                 <th>Заказ</th>
-                <th>Дата</th>
+                <th class='col-date'>Дата</th>
                 <th>Курьер</th>
                 <th>Фото</th>
                 <th>Проблема</th>
@@ -123,14 +123,14 @@
         <tbody>
             {% for item in orders %}
             <tr>
-                <td>{{ item.order.id }}</td>
+                <td class='col-id'>{{ item.order.id }}</td>
                 <td>
                     <strong>{{ item.order.order_number or '#' ~ item.order.id }}</strong>
-                    {% if item.order.description %}
-                    <br><small style='color: var(--text-secondary);'>{{ item.order.description[:80] }}{% if item.order.description|length > 80 %}...{% endif %}</small>
+                    {% if item.summary %}
+                    <br><small style='color: var(--text-secondary);'>{{ item.summary[:80] }}{% if item.summary|length > 80 %}...{% endif %}</small>
                     {% endif %}
                 </td>
-                <td>{{ item.order.created_at.strftime('%d.%m.%Y %H:%M') if item.order.created_at else '—' }}</td>
+                <td class='col-date'>{{ item.order.created_at.strftime('%d.%m.%Y %H:%M') if item.order.created_at else '—' }}</td>
                 <td>{{ item.courier_fio }}</td>
                 <td>
                     <span class='badge badge-{{ "success" if item.photos_count > 0 else "warning" }}'>

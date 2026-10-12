@@ -10,7 +10,11 @@
         <line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
     <div class="empty-state-title">500 — Ошибка сервера</div>
-    <div class="empty-state-text">Что-то пошло не так. Попробуйте обновить страницу.</div>
-    <a href="{{ url_for('main.index') }}" class="btn btn-primary" style="margin-top: 24px;">На главную</a>
+    <div class="empty-state-text">Что-то пошло не так. Попробуйте повторить или вернитесь назад.</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 24px;">
+        <button type="button" class="btn btn-primary" onclick="location.reload()">Повторить</button>
+        <button type="button" class="btn btn-secondary" onclick="history.back()">Назад</button>
+        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">На главную</a>
+    </div>
 </div>
 {% endblock %}

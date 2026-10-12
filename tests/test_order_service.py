@@ -1,6 +1,6 @@
 from app.models.order import Order
 from app.models.photo import Photo
-from app.services.order_service import OrderService
+from app.services.order_service import OrderService, split_description
 
 
 class TestOrderService:
@@ -99,3 +99,63 @@ class TestOrderService:
         assert "photos_count" in stats
         assert "orders_with_photos" in stats
         assert stats["orders_count"] >= 1
+
+
+class TestSplitDescription:
+    """F-05 UX-аудита: описание заказа = человеческая часть + служебные поля."""
+
+    def test_legacy_technical_fields_are_separated(self):
+        desc = "czf: МОК Бишкек 14:1; confirmed_at: 3.10.26 08:00; sla: 15; sum: 1777"
+        human, technical = split_description(desc)
+        assert human == ""
+        assert "czf: МОК Бишкек 14:1" in technical
+        assert "sla: 15" in technical
+        assert "sum: 1777" in technical
+
+    def test_human_labels_stay_human(self):
+        desc = "Адрес: Бишкек, Ленина 1\nПодтема: нужно фото\nДата: 01.10.2026"
+        human, technical = split_description(desc)
+        assert "Адрес: Бишкек, Ленина 1" in human
+        assert "Подтема: нужно фото" in human
+        assert technical == ""
+
+    def test_mixed_description_is_split(self):
+        desc = "Адрес: Ош, Масалиева 5\nczf: 42; sla: 10"
+        human, technical = split_description(desc)
+        assert "Адрес: Ош, Масалиева 5" in human
+        assert "czf: 42" in technical
+        assert "czf" not in human
+
+    def test_empty_description(self):
+        assert split_description(None) == ("", "")
+        assert split_description("") == ("", "")
+
+    def test_summary_prefers_address(self, db_session, regular_user):
+        order = Order(
+            user_id=regular_user.id,
+            order_number="SUM-1",
+            address="Бишкек, ул. Мира 7",
+            description="czf: X; sla: 5",
+        )
+        db_session.add(order)
+        db_session.commit()
+        assert OrderService.order_summary(order) == "Бишкек, ул. Мира 7"
+
+    def test_summary_falls_back_to_human_part(self, db_session, regular_user):
+        order = Order(
+            user_id=regular_user.id,
+            order_number="SUM-2",
+            description="Адрес: Бишкек, Южная 3\nczf: Y",
+        )
+        db_session.add(order)
+        db_session.commit()
+        assert OrderService.order_summary(order) == "Адрес: Бишкек, Южная 3"
+
+    def test_summary_empty_for_technical_only(self, db_session, regular_user):
+        order = Order(user_id=regular_user.id, order_number="SUM-3", description="czf: Z; sla: 1")
+        db_session.add(order)
+        db_session.commit()
+        assert OrderService.order_summary(order) == ""
+
+    def test_summary_none_order(self):
+        assert OrderService.order_summary(None) == ""

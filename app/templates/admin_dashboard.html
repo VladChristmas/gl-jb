@@ -147,28 +147,39 @@
 
 <!-- Analytics -->
 <div class='analytics-grid'>
-    <div class='card chart-card'>
-        <h3>Заказы по дням</h3>
-        {% if stats.daily_orders %}
-        <div class='sparkline-container' role='img' aria-label='График заказов по дням'>
+    {# Макрос спарклайна: при одной точке рисуем круг (P3-UX-2: иначе график
+       выглядел пустым), при нескольких — ломаную (P3-UX-3: жалобы по дням). #}
+    {% macro sparkline(items, color) -%}
+        {% set count_max = items | map(attribute='count') | max %}
+        <div class='sparkline-container' role='img' aria-label='График по дням'>
             <svg class='sparkline' viewBox='0 0 100 30' preserveAspectRatio='none'>
-                {% set max_count = stats.daily_orders | map(attribute='count') | max %}
-                {% set points_str = '' %}
-                {% for item in stats.daily_orders %}
-                    {% set x = loop.index0 * (100 / (stats.daily_orders | length - 1)) if stats.daily_orders | length > 1 else 50 %}
-                    {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
-                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
-                {% endfor %}
-                {% if points_str %}
-                <polyline fill='none' stroke='var(--primary)' stroke-width='2' points='{{ points_str }}' />
+                {% if items | length == 1 %}
+                    {% set y = 30 - (items[0].count / count_max * 25) if count_max > 0 else 15 %}
+                    <circle cx='50' cy='{{ y }}' r='2.5' fill='{{ color }}' />
+                {% else %}
+                    {% set points_str = '' %}
+                    {% for item in items %}
+                        {% set x = loop.index0 * (100 / (items | length - 1)) %}
+                        {% set y = 30 - (item.count / count_max * 25) if count_max > 0 else 30 %}
+                        {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                    {% endfor %}
+                    {% if points_str %}
+                    <polyline fill='none' stroke='{{ color }}' stroke-width='2' points='{{ points_str }}' />
+                    {% endif %}
                 {% endif %}
             </svg>
         </div>
         <div class='sparkline-labels'>
-            {% for item in stats.daily_orders %}
+            {% for item in items %}
             <span>{{ item.day if item.day else "—" }}</span>
             {% endfor %}
         </div>
+    {%- endmacro %}
+
+    <div class='card chart-card'>
+        <h3>Заказы по дням</h3>
+        {% if stats.daily_orders %}
+        {{ sparkline(stats.daily_orders, 'var(--primary)') }}
         {% else %}
         <div class='empty-state' style='padding: 24px; text-align: center;'>
             <div class='empty-state-text'>Нет данных за период</div>
@@ -178,9 +189,13 @@
 
     <div class='card chart-card'>
         <h3>Жалобы по дням</h3>
+        {% if stats.daily_complaints %}
+        {{ sparkline(stats.daily_complaints, 'var(--danger, #e74c3c)') }}
+        {% else %}
         <div class='empty-state' style='padding: 24px; text-align: center;'>
-            <div class='empty-state-text'>Динамика жалоб — в разработке</div>
+            <div class='empty-state-text'>Нет жалоб за период</div>
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -314,6 +329,10 @@
         {% else %}
         <div class='empty-state' style='padding: 24px;'>
             <div class='empty-state-text'>Нет данных о сборщиках</div>
+            <p class='empty-state-hint' style='margin: 8px 0 0; font-size: 13px; color: var(--text-secondary);'>
+                Данные берутся из импорта — нужна колонка «Сборщик» в файле.
+                <a href='{{ url_for("admin.import_mappings") }}'>Настройки импорта</a>
+            </p>
         </div>
         {% endif %}
     </div>
@@ -348,10 +367,6 @@
 <div class='card'>
     <h2>Хранилище</h2>
     <div class='storage-info'>
-        <div class='storage-item'>
-            <div class='storage-label'>Путь</div>
-            <code>{{ stats.upload_folder }}</code>
-        </div>
         <div class='storage-item'>
             <div class='storage-label'>Размер</div>
             <div class='storage-value'>{{ (stats.upload_size / 1024 / 1024) | round(2) }} MB</div>

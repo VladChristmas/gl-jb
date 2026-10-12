@@ -402,6 +402,7 @@ class PhotoService:
                     "problem_type": problem_type,
                     "courier_fio": order.courier_fio or user.fio,
                     "is_corrupted": is_corrupted,
+                    "summary": OrderService.order_summary(order),
                 }
             )
 

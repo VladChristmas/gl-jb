@@ -121,7 +121,7 @@
                 <div class="activity-icon">⏳</div>
                 <div class="activity-body">
                     <div class="activity-title">{{ order.order_number or '#' ~ order.id }}</div>
-                    <div class="activity-meta">{{ order.description[:60] if order.description else '' }}</div>
+                    <div class="activity-meta">{{ order.summary[:60] if order.summary else '' }}</div>
                 </div>
                 <a href="{{ url_for('user.order_photos', order_id=order.id) }}" class="btn btn-sm btn-primary">📷</a>
             </div>

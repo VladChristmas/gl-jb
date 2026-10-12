@@ -257,9 +257,9 @@ navigator.serviceWorker.register(swUrl, { scope: '/' });
 | F-01 | ✅ исправлено локально | `complaint_service.py:263` — SELECT `trim(Order.courier_fio)` совпадает с GROUP BY |
 | F-02 | ✅ исправлено локально | `dashboard_service.py:889, 1050` — тот же паттерн (AnalyticsService) |
 | F-03 | ✅ исправлено локально | `kpi_cards` + `pct`/`delta`: None; шаблон: `card.X is defined and ... is not none` |
-| F-04 | ✅ исправлено локально | `utils.js` register со scope `/`; `sw.js` cache v7 |
-| F-06 | ✅ исправлено локально | `_admin_api_auth_error()`: 401 без сессии / 403 при отозванной роли |
-| F-05 | ⬜ не исправлено | требует продуктового решения по формату «Описания» |
+| F-04 | ✅ исправлено на проде | `utils.js` register со scope `/`; `sw.js` cache v7 |
+| F-05 | ✅ исправлено локально | списки показывают адрес/человеческое описание (`OrderService.order_summary`, `split_description`); служебные поля импорта — в свёртке «Технические данные заказа» |
+| F-06 | ✅ исправлено на проде | `_admin_api_auth_error()`: 401 без сессии / 403 при отозванной роли |
 
 **Верификация на живой PostgreSQL** (docker `gl_jb_audit`): `courier_summary`,
 `courier_complaint_stats`, `get_filter_options` — без GroupingError;

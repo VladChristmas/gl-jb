@@ -15,7 +15,11 @@ from app.extensions import limiter
 from app.services.dashboard_service import DashboardService
 from app.services.email_service import EmailService
 from app.services.message_service import MessageService
-from app.services.order_service import USER_ORDERS_PHOTO_FILTER_VALUES, OrderService
+from app.services.order_service import (
+    USER_ORDERS_PHOTO_FILTER_VALUES,
+    OrderService,
+    split_description,
+)
 from app.services.photo_service import PhotoService
 from app.services.user_service import UserService
 from app.utils import wants_json
@@ -56,6 +60,9 @@ def dashboard():
             role_labels=ROLE_LABELS,
         )
     stats = DashboardService.courier_stats(user_id)
+    # Человекочитаемое описание в «Ожидают фото»: без служебных полей импорта (F-05)
+    for order in stats.get("pending_orders", []):
+        order.summary = OrderService.order_summary(order)
     return render_template("user_dashboard.html", stats=stats, user=user, role_labels=ROLE_LABELS)
 
 
@@ -82,6 +89,8 @@ def orders():
     photo_counts = PhotoService.counts_by_order([order.id for order in orders])
     for order in orders:
         order.photos_count = photo_counts.get(order.id, 0)
+        # Человекочитаемое описание: без служебных полей импорта (F-05 UX-аудита)
+        order.summary = OrderService.order_summary(order)
         # Подсказка курьеру: по жалобе обязательно фото, а его ещё нет
         order.photo_required = any(
             topic in (order.complaint_text or "") for topic in PHOTO_REQUIRED_TOPICS
@@ -163,6 +172,9 @@ def order_photos(order_id):
         return redirect(url_for("user.orders"))
 
     photos = PhotoService.get_order_photos(order_id)
+
+    # Человеческое описание + служебные поля импорта отдельным блоком (F-05)
+    order.summary, order.technical_description = split_description(order.description)
 
     return render_template("user_order_photos.html", order=order, photos=photos)
 

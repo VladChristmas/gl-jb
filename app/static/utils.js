@@ -171,6 +171,20 @@ GLB.initBottomNav = function () {
     });
 };
 
+// Локализованный выбор файла (P3-UX-5): имя выбранного файла рядом с кнопкой
+GLB.initFileInputs = function () {
+    document.querySelectorAll('input[type="file"][data-file-input]').forEach(function (input) {
+        input.addEventListener('change', function () {
+            var name = input.files && input.files.length ? input.files[0].name : 'Файл не выбран';
+            var holder = input.closest('.file-input');
+            var target = holder ? holder.querySelector('[data-file-name]') : null;
+            if (target) {
+                target.textContent = name;
+            }
+        });
+    });
+};
+
 // Service Worker Registration
 GLB.registerServiceWorker = function (swUrl) {
     if ('serviceWorker' in navigator) {
@@ -191,4 +205,5 @@ document.addEventListener('DOMContentLoaded', function () {
     GLB.initThemeSwitcher();
     GLB.initCardTables();
     GLB.initBottomNav();
+    GLB.initFileInputs();
 });

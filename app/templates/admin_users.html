@@ -43,7 +43,7 @@
             <th>ФИО</th>
             <th>Роль</th>
             <th>Токен</th>
-            <th>Создан</th>
+            <th class="col-date">Создан</th>
             <th>Действия</th>
         </tr>
     </thead>
@@ -57,7 +57,7 @@
                 </span>
             </td>
             <td><code>{{ user.token }}</code></td>
-            <td>{{ user.created_at }}</td>
+            <td class="col-date">{{ user.created_at }}</td>
             <td>
                 <form method="post" action="{{ url_for('admin.set_user_role', user_id=user.id) }}" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

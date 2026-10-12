@@ -54,7 +54,7 @@
                 <span>{{ order.address }}</span>
             </div>
             {% endif %}
-            <div class="order-description">{{ order.description }}</div>
+            <div class="order-description">{{ order.summary }}</div>
             {% if order.photo_required and order.photos_count == 0 %}
             <p class="photo-required-hint" role="status">
                 ⚠ По жалобе на этот заказ обязательно фото-подтверждение — пришлите фото после доставки.
