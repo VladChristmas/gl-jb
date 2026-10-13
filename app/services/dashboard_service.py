@@ -908,7 +908,19 @@ class AnalyticsService:
         search: str = "",
         limit: int = 20,
     ) -> list[dict]:
-        """Статистика жалоб по курьерам: заказы, жалобы, доля, тренд."""
+        """Статистика жалоб по курьерам: заказы, жалобы, доля, тренд.
+
+        Согласовано с `/admin/complaints` (ComplaintService.build_complaints_query):
+        период фильтрует `Complaint.created_at` (дата жалобы, не заказа), иначе
+        жалоба, зарегистрированная через дни после заказа, попадала бы в список,
+        но не в эту таблицу — и цифры на одной странице расходились бы.
+        Строка курьера ведёт в список с теми же фильтрами, поэтому
+        `complaints_count` должен совпадать с `pagination.total` для курьера.
+
+        `orders_count` — уникальные заказы (`count(distinct(Order.id))`):
+        `count(Order.id)` на `outerjoin(Complaint)` размножал строки заказов
+        по числу жалоб (2 заказа с 4 жалобами давали orders_count == 4) и завышал «Долю, %».
+        """
         from app.services.complaint_service import ComplaintService
 
         start, end = date_range_bounds(date_from, date_to, period)
@@ -917,7 +929,7 @@ class AnalyticsService:
         query = (
             db.session.query(
                 func.trim(Order.courier_fio),
-                func.count(Order.id).label("orders_count"),
+                func.count(distinct(Order.id)).label("orders_count"),
                 func.count(Complaint.id).label("complaints_count"),
             )
             .outerjoin(Complaint, Complaint.order_id == Order.id)
@@ -929,9 +941,9 @@ class AnalyticsService:
         elif status:
             query = query.filter(Complaint.status == status)
         if start:
-            query = query.filter(Order.created_at >= start)
+            query = query.filter(Complaint.created_at >= start)
         if end:
-            query = query.filter(Order.created_at < end)
+            query = query.filter(Complaint.created_at < end)
         if search:
             like = f"%{search.strip()}%"
             query = query.filter(or_(Order.order_number.ilike(like), Complaint.text.ilike(like)))
@@ -961,10 +973,17 @@ class AnalyticsService:
         date_to: str = "",
         period: str = "",
         courier: str = "",
+        status: str = "",
         search: str = "",
     ) -> list[dict]:
-        """Распределение жалоб по статусам."""
-        from app.services.complaint_service import ComplaintService  # noqa: F401
+        """Распределение жалоб по статусам.
+
+        `status` принимается для согласованности страницы: аналитика
+        (`/admin/analytics`) показывает фильтр по статусу, и `complaint_trends` /
+        `courier_complaint_stats` его учитывают. Без него в этой таблице оставались
+        все жалобы, и на одном экране соседние блоки показывали разные числа.
+        """
+        from app.services.complaint_service import ComplaintService
 
         start, end = date_range_bounds(date_from, date_to, period)
 
@@ -974,6 +993,10 @@ class AnalyticsService:
 
         if courier:
             query = query.filter(func.trim(Order.courier_fio) == courier.strip())
+        if status == ComplaintService.NO_STATUS:
+            query = query.filter(or_(Complaint.status.is_(None), Complaint.status == ""))
+        elif status:
+            query = query.filter(Complaint.status == status)
         if start:
             query = query.filter(Complaint.created_at >= start)
         if end:

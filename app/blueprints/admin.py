@@ -512,7 +512,12 @@ def analytics():
         date_from=date_from, date_to=date_to, period=period, status=status, search=search
     )
     status_breakdown = AnalyticsService.status_breakdown(
-        date_from=date_from, date_to=date_to, period=period, courier=courier, search=search
+        date_from=date_from,
+        date_to=date_to,
+        period=period,
+        courier=courier,
+        status=status,
+        search=search,
     )
     photo_breakdown = AnalyticsService.photo_topic_breakdown(
         date_from=date_from, date_to=date_to, period=period, courier=courier, search=search
