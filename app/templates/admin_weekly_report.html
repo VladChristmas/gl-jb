@@ -65,14 +65,16 @@
         <div class="sparkline-container" role="img" aria-label="График заказов по дням">
             <svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none">
                 {% set max_count = report.daily_orders | map(attribute='count') | max %}
-                {% set points_str = '' %}
+                {# namespace(): обычный {% set points_str %} внутри {% for %}
+                   живёт только в scope цикла и polyline не рендерился. #}
+                {% set ns = namespace(points='') %}
                 {% for item in report.daily_orders %}
                     {% set x = loop.index0 * (100 / (report.daily_orders | length - 1)) if report.daily_orders | length > 1 else 50 %}
                     {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
-                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                    {% set ns.points = ns.points ~ x ~ ',' ~ y ~ ' ' %}
                 {% endfor %}
-                {% if points_str %}
-                <polyline fill="none" stroke="var(--primary)" stroke-width="2" points="{{ points_str }}" />
+                {% if ns.points %}
+                <polyline fill="none" stroke="var(--primary)" stroke-width="2" points="{{ ns.points }}" />
                 {% endif %}
             </svg>
         </div>
@@ -94,14 +96,16 @@
         <div class="sparkline-container" role="img" aria-label="График жалоб по дням">
             <svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none">
                 {% set max_count = report.daily_complaints | map(attribute='count') | max %}
-                {% set points_str = '' %}
+                {# namespace(): обычный {% set points_str %} внутри {% for %}
+                   живёт только в scope цикла и polyline не рендерился. #}
+                {% set ns = namespace(points='') %}
                 {% for item in report.daily_complaints %}
                     {% set x = loop.index0 * (100 / (report.daily_complaints | length - 1)) if report.daily_complaints | length > 1 else 50 %}
                     {% set y = 30 - (item.count / max_count * 25) if max_count > 0 else 30 %}
-                    {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                    {% set ns.points = ns.points ~ x ~ ',' ~ y ~ ' ' %}
                 {% endfor %}
-                {% if points_str %}
-                <polyline fill="none" stroke="var(--danger)" stroke-width="2" points="{{ points_str }}" />
+                {% if ns.points %}
+                <polyline fill="none" stroke="var(--danger)" stroke-width="2" points="{{ ns.points }}" />
                 {% endif %}
             </svg>
         </div>

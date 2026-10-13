@@ -211,7 +211,17 @@ def _admin_api_auth_error():
 @admin_bp.route("/")
 @admin_required
 def dashboard():
-    stats = DashboardService.admin_stats()
+    # Селектор периода из шаблона (admin_dashboard.html): today/week/month/custom.
+    # Без параметров — все показатели за всё время (admin_stats), с параметрами —
+    # диапазон из date_range_bounds (admin_stats_period).
+    period = request.args.get("period", "")
+    date_from = request.args.get("date_from", "")
+    date_to = request.args.get("date_to", "")
+
+    if period or date_from or date_to:
+        stats = DashboardService.admin_stats_period(period, date_from, date_to)
+    else:
+        stats = DashboardService.admin_stats()
 
     upload_size = 0
     if os.path.exists(UPLOAD_FOLDER):
@@ -227,7 +237,14 @@ def dashboard():
     # Initial notifications for server-side render (client will poll for updates)
     notifications = NotificationService.get_notifications(limit=10)
 
-    return render_template("admin_dashboard.html", stats=stats, notifications=notifications)
+    return render_template(
+        "admin_dashboard.html",
+        stats=stats,
+        notifications=notifications,
+        period=period,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @admin_bp.route("/pickers")

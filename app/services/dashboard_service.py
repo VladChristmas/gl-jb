@@ -94,6 +94,20 @@ class DashboardService:
             .all()
         )
 
+        # Жалобы по дням (last 7 days) — P3-UX-3 аудита: вместо заглушки «в разработке».
+        # join(Order) как в weekly report: не считаем жалобы удалённых заказов (сироты).
+        daily_complaints = (
+            db.session.query(
+                func.date(Complaint.created_at).label("day"),
+                func.count(Complaint.id).label("count"),
+            )
+            .join(Order, Complaint.order_id == Order.id)
+            .filter(Complaint.created_at >= week_ago)
+            .group_by(func.date(Complaint.created_at))
+            .order_by(func.date(Complaint.created_at))
+            .all()
+        )
+
         # Completion rate
         completion_rate = round(
             (orders_with_photos / orders_count * 100) if orders_count > 0 else 0, 1
@@ -146,6 +160,7 @@ class DashboardService:
             "completion_rate": completion_rate,
             "pending_orders": pending_orders,
             "daily_orders": daily_orders,
+            "daily_complaints": daily_complaints,
             "best_couriers": best_couriers,
             "best_pickers": best_pickers,
             "avg_courier_score": avg_courier_score,

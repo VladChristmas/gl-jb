@@ -43,7 +43,7 @@
 
 <!-- Period Selector -->
 <div class='period-selector' role='group' aria-label='Период'>
-    <a href='{{ url_for("admin.dashboard", period="today") }}' class='period-btn {% if period == "today" %}is-active{% endif %}'>Сегодня</a>
+    <a href='{{ url_for("admin.dashboard", period="day") }}' class='period-btn {% if period == "day" %}is-active{% endif %}'>Сегодня</a>
     <a href='{{ url_for("admin.dashboard", period="week") }}' class='period-btn {% if period == "week" %}is-active{% endif %}'>Неделя</a>
     <a href='{{ url_for("admin.dashboard", period="month") }}' class='period-btn {% if period == "month" %}is-active{% endif %}'>Месяц</a>
     <details class='period-custom'>
@@ -148,23 +148,28 @@
 <!-- Analytics -->
 <div class='analytics-grid'>
     {# Макрос спарклайна: при одной точке рисуем круг (P3-UX-2: иначе график
-       выглядел пустым), при нескольких — ломаную (P3-UX-3: жалобы по дням). #}
+       выглядел пустым), при нескольких — ломаную (P3-UX-3: жалобы по дням).
+
+       ВАЖНО: накопитель точек обязательно через namespace(). Обычный
+       {% set points_str = ... %} внутри {% for %} живёт только в scope цикла
+       и после цикла снова равен '' — из-за этого polyline не рендерился
+       вообще, и «Заказы/Жалобы по дням» показывались пустыми SVG. #}
     {% macro sparkline(items, color) -%}
         {% set count_max = items | map(attribute='count') | max %}
+        {% set ns = namespace(points='') %}
         <div class='sparkline-container' role='img' aria-label='График по дням'>
             <svg class='sparkline' viewBox='0 0 100 30' preserveAspectRatio='none'>
                 {% if items | length == 1 %}
                     {% set y = 30 - (items[0].count / count_max * 25) if count_max > 0 else 15 %}
                     <circle cx='50' cy='{{ y }}' r='2.5' fill='{{ color }}' />
                 {% else %}
-                    {% set points_str = '' %}
                     {% for item in items %}
                         {% set x = loop.index0 * (100 / (items | length - 1)) %}
                         {% set y = 30 - (item.count / count_max * 25) if count_max > 0 else 30 %}
-                        {% set points_str = points_str ~ x ~ ',' ~ y ~ ' ' %}
+                        {% set ns.points = ns.points ~ x ~ ',' ~ y ~ ' ' %}
                     {% endfor %}
-                    {% if points_str %}
-                    <polyline fill='none' stroke='{{ color }}' stroke-width='2' points='{{ points_str }}' />
+                    {% if ns.points %}
+                    <polyline fill='none' stroke='{{ color }}' stroke-width='2' points='{{ ns.points }}' />
                     {% endif %}
                 {% endif %}
             </svg>
