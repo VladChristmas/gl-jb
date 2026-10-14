@@ -92,6 +92,54 @@ def test_legacy_create_all_database_is_adopted(tmp_path):
         assert "role" in _columns("users")
 
 
+def test_backfill_complaints_created_at(tmp_path):
+    """c7b6a9f8e2d1: NULL created_at жалоб получает дату заказа, не трогая заполненные.
+
+    Приоритет: orders.complaint_date (реальная дата обращения), иначе
+    orders.created_at (дата импорта). Строка с уже известной датой — не меняется.
+    """
+    uri = "sqlite:///" + (tmp_path / "backfill.db").as_posix()
+    application = _app_for(uri)
+
+    with application.app_context():
+        # Схема как на проде до бэкоффила (таблица complaints уже есть)
+        upgrade(revision="add_operational_analysis")
+
+        db.session.execute(text("INSERT INTO users (id, fio, token) VALUES (1, 'Тест', 'tok1')"))
+        # Заказ без даты жалобы в зеркале — возьмём created_at заказа
+        db.session.execute(
+            text(
+                "INSERT INTO orders (id, user_id, created_at) "
+                "VALUES (1, 1, '2026-10-06 16:54:29')"
+            )
+        )
+        # Заказ с датой жалобы в зеркале — приоритет у неё
+        db.session.execute(
+            text(
+                "INSERT INTO orders (id, user_id, created_at, complaint_date) "
+                "VALUES (2, 1, '2026-10-06 16:54:29', '2026-09-01 10:00:00')"
+            )
+        )
+        db.session.execute(
+            text(
+                "INSERT INTO complaints (id, order_id, text, created_at) VALUES "
+                "(1, 1, 'жалоба без даты', NULL), "
+                "(2, 2, 'жалоба без даты, дата есть в зеркале', NULL), "
+                "(3, 2, 'жалоба с известной датой', '2026-09-02 12:00:00')"
+            )
+        )
+        db.session.commit()
+
+        upgrade()  # head — прогоняет backfill
+
+        rows = dict(
+            db.session.execute(text("SELECT id, created_at FROM complaints ORDER BY id")).fetchall()
+        )
+        assert rows[1] == "2026-10-06 16:54:29", "нет created_at заказа — нет и даты жалобы"
+        assert rows[2] == "2026-09-01 10:00:00", "приоритет у complaint_date из зеркала"
+        assert rows[3] == "2026-09-02 12:00:00", "известная дата не должна меняться"
+
+
 def test_create_app_runs_migrations_without_create_all(tmp_path, monkeypatch):
     """create_app() РѕР±СЏР·Р°РЅ РїРѕР»СѓС‡РёС‚СЊ СЃС…РµРјСѓ РёР· Alembic, Р° РЅРµ РёР· db.create_all()."""
     import app as app_pkg
