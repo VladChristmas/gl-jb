@@ -15,6 +15,17 @@ def _secret_equals(value: str, secret: str) -> bool:
     return bool(value) and bool(secret) and hmac.compare_digest(value, secret)
 
 
+def _start_session(**values: object) -> None:
+    """Начать запомненную сессию: permanent-кука переживает закрытие браузера/PWA.
+
+    Срок жизни — config.PERMANENT_SESSION_LIFETIME (SESSION_LIFETIME_DAYS, 30 дней).
+    Ключи сессии (user_id/is_admin) те же, роль по-прежнему перечитывается из БД
+    на каждый запрос — отзыв роли или logout сбрасывают сессию полностью.
+    """
+    session.permanent = True
+    session.update(values)
+
+
 def _client_ip() -> str:
     return request.remote_addr or "-"
 
@@ -53,15 +64,13 @@ def unified_login():
             return render_template("unified_login.html")
 
         if _secret_equals(token, ADMIN_TOKEN):
-            session["is_admin"] = True
+            _start_session(is_admin=True)
             _log_login_ok("unified", ROLE_ADMIN)
             return redirect(url_for("admin.dashboard"))
 
         user = UserService.get_user_by_token(token)
         if user:
-            session["user_id"] = user.id
-            session["user_fio"] = user.fio
-            session["user_role"] = user.role
+            _start_session(user_id=user.id, user_fio=user.fio, user_role=user.role)
             _log_login_ok("unified", user.role, user.id)
             if user.role == ROLE_ADMIN:
                 session["is_admin"] = True
@@ -86,7 +95,7 @@ def admin_login():
     if request.method == "POST":
         password = request.form.get("password", "")
         if _secret_equals(password, ADMIN_PASSWORD):
-            session["is_admin"] = True
+            _start_session(is_admin=True)
             _log_login_ok("password", ROLE_ADMIN)
             return redirect(url_for("admin.dashboard"))
         _log_login_failed(
@@ -102,7 +111,7 @@ def admin_token_login():
     if request.method == "POST":
         token = request.form.get("token", "").strip()
         if _secret_equals(token, ADMIN_TOKEN):
-            session["is_admin"] = True
+            _start_session(is_admin=True)
             _log_login_ok("admin_token", ROLE_ADMIN)
             return redirect(url_for("admin.dashboard"))
         _log_login_failed("admin_token", "empty_token" if not token else "invalid_token", token)

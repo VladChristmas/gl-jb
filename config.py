@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -57,6 +58,14 @@ FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 # (см. app/__init__.py): Secure-куку нельзя ставить на чистом HTTP, иначе браузер
 # её отбрасывает и пользователь «выпадает» из аккаунта сразу после логина.
 SESSION_COOKIE_SECURE = not FLASK_DEBUG
+
+# Срок жизни запомнённого входа («вход по тегу»). Без permanent-куки сессия —
+# browser-session cookie: закрыл браузер/PWA — вход потерян. Теперь при логине
+# ставится session.permanent=True и кука получает Expires (30 дней по умолчанию,
+# настраивается SESSION_LIFETIME_DAYS в .env). Роль перечитывается из БД на
+# каждый запрос (admin_required/user_required), отзыв роли по-прежнему сбрасывает сессию.
+SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", 30))
+PERMANENT_SESSION_LIFETIME = timedelta(days=SESSION_LIFETIME_DAYS)
 
 # Email settings (настроено для mail.ru по умолчанию)
 MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.mail.ru")

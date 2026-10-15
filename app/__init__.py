@@ -17,6 +17,7 @@ from config import (
     MAIL_USE_TLS,
     MAIL_USERNAME,
     MAX_CONTENT_LENGTH,
+    PERMANENT_SESSION_LIFETIME,
     RATELIMIT_STORAGE_URL,
     RATING_DATE_SOURCE,
     RATING_MIN_ORDERS,
@@ -56,6 +57,9 @@ def create_app():
     app.config["SESSION_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    # «Запомнить вход»: session.permanent=True при логине → кука с Expires
+    # переживает закрытие браузера/приложения (см. config.SESSION_LIFETIME_DAYS).
+    app.config["PERMANENT_SESSION_LIFETIME"] = PERMANENT_SESSION_LIFETIME
     app.config["REMEMBER_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
     app.config["REMEMBER_COOKIE_HTTPONLY"] = True
     app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
