@@ -10,11 +10,11 @@
 
 <form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
     <input type="hidden" name="status" value="{{ status }}">
-    <div class="form-group" style="min-width: 150px; width: 100%; max-width: 100%;">
+    <div class="form-group" style="min-width: 150px;">
         <label for="search">Поиск</label>
         <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или текст жалобы" autocomplete="off">
     </div>
-    <div class="form-group" style="min-width: 140px; width: 100%; max-width: 100%;">
+    <div class="form-group" style="min-width: 140px;">
         <label for="status_select">Статус</label>
         <select id="status_select" name="status" onchange="this.form.submit();">
             <option value="" {% if status == '' %}selected{% endif %}>Все статусы</option>
@@ -23,7 +23,7 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 140px; width: 100%; max-width: 100%;">
+    <div class="form-group" style="min-width: 140px;">
         <label for="courier">Курьер</label>
         <select id="courier" name="courier">
             <option value="">Все курьеры</option>
@@ -32,11 +32,11 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 120px; width: 100%; max-width: 100%;">
+    <div class="form-group" style="min-width: 120px;">
         <label for="date_from">Период с</label>
         <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
     </div>
-    <div class="form-group" style="min-width: 120px; width: 100%; max-width: 100%;">
+    <div class="form-group" style="min-width: 120px;">
         <label for="date_to">по</label>
         <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
     </div>

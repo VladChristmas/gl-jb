@@ -12,7 +12,7 @@
         <strong style="min-width: 180px; text-align: center;">{{ report.label }}</strong>
         <a href="{{ url_for('admin.weekly_report', week=week_links.next) }}" class="btn btn-sm btn-secondary" title="Следующая неделя">›</a>
         <a href="{{ url_for('admin.weekly_report', week=week_links.now) }}" class="btn btn-sm btn-secondary" title="Текущая неделя">Сейчас</a>
-        <a href="{{ url_for('admin.export_weekly_report_excel', week=week_param) }}" class="btn btn-primary">Экспорт Excel</a>
+        <a href="{{ url_for('admin.export_weekly_report_excel', week=week_param) }}" class="btn btn-sm btn-primary">Экспорт Excel</a>
     </div>
 </div>
 
