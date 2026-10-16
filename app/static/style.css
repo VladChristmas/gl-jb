@@ -3869,3 +3869,10 @@ textarea:focus-visible,
         width: 100%;
     }
 }
+
+/* ===== Mobile audit: minor responsive hardening (320-430) ===== */
+@media (max-width: 480px) {
+    img, video, svg, canvas { max-width: 100%; height: auto; }
+    .container { padding: 12px; }
+    .btn, button { min-height: 40px; }
+}
