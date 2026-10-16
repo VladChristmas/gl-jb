@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gl_jb-v8';
+const CACHE_NAME = 'gl_jb-v9';
 const STATIC_ASSETS = [
   '/static/manifest.json',
   '/static/style.css',

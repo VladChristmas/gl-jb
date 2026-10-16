@@ -5,7 +5,7 @@
 {% block content %}
 <div class="login-box">
     <h1>Вход суперадмина</h1>
-    <form method="post">
+    <form method="post" data-remember-token>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="token">Токен</label>

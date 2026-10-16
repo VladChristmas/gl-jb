@@ -6,7 +6,7 @@
 <div class="login-box">
     <h1>Вход в систему</h1>
     <p class="subtitle">Введите ваш токен — система сама определит роль</p>
-    <form method="post">
+    <form method="post" data-remember-token>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         
         <div class="form-group">

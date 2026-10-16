@@ -23,6 +23,7 @@
     </script>
     <script src="{{ url_for('static', filename='utils.js') }}"></script>
     <script src="{{ url_for('static', filename='install.js') }}"></script>
+    <script src="{{ url_for('static', filename='auth-remember.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body{% if session.is_admin or session.user_id %} class="has-bottom-nav"{% endif %}>

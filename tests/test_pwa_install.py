@@ -62,7 +62,7 @@ class TestInstallJsSource:
     def test_sw_cache_bumped_for_new_static(self):
         src = (STATIC / "sw.js").read_text(encoding="utf-8")
         # Бамп кэша при изменении статики: фикса register scope доезжает до клиентов
-        assert "gl_jb-v8" in src
+        assert "gl_jb-v9" in src
 
     def test_modal_markup_uses_project_design_tokens(self):
         css = (STATIC / "style.css").read_text(encoding="utf-8")

@@ -468,7 +468,11 @@ class TestViewportMatrix:
             page.goto(f"{live_server}/admin/complaints")
             _assert_no_horizontal_scroll(page, "/admin/complaints")
 
-            # Курьер: pending-фильтр и галерея фото
+            # Курьер: pending-фильтр и галерея фото.
+            # Выход обязателен: авторизованный GET /login редиректится в админку,
+            # а localStorage с админ-токеном авто-входил бы обратно.
+            page.goto(f"{live_server}/logout")
+            page.wait_for_load_state()
             page.goto(f"{live_server}/login")
             page.fill("#token", regular_user.token)
             page.click("button[type=submit]")
@@ -794,6 +798,115 @@ class TestInstallGuideModal:
             assert (
                 page.locator("#install-native-btn").count() == 0
             ), "В standalone не должна показываться кнопка установки"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+
+class TestAuthRemember:
+    """Вход по тегу в PWA: localStorage переживает чистку cookies."""
+
+    KEY = "gljb_auth_token"
+
+    def test_login_saves_token_to_localstorage(self, browser, live_server, app):
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            stored = page.evaluate(f"localStorage.getItem('{self.KEY}')")
+            assert stored == ADMIN_TOKEN, "токен должен сохраняться в localStorage при входе"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_auto_login_after_cookie_wipe(self, browser, live_server, app):
+        """Cookies стёрты (standalone-приложение), localStorage цел — вход молча восстанавливается."""
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+
+            context.clear_cookies()  # имитация чистки cookies в PWA между запусками
+
+            page.goto(f"{live_server}/login")
+            page.wait_for_load_state()
+            page.wait_for_url("**/admin/**", timeout=10000)
+            assert page.url.rstrip("/").endswith("/admin"), f"авто-вход не сработал: {page.url}"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_logout_clears_stored_token(self, browser, live_server, app):
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            assert page.evaluate(f"localStorage.getItem('{self.KEY}')") == ADMIN_TOKEN
+
+            page.goto(f"{live_server}/admin/")
+            page.locator("a[href*='/logout']").first.click()
+            page.wait_for_load_state()
+
+            assert (
+                page.evaluate(f"localStorage.getItem('{self.KEY}')") is None
+            ), "после «Выйти» сохранённый токен должен быть удалён"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_direct_logout_url_clears_stored_token(self, browser, live_server, app):
+        """Прямой переход на /logout (без клика): маркер logged_out чистит токен."""
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            assert page.evaluate(f"localStorage.getItem('{self.KEY}')") == ADMIN_TOKEN
+
+            page.goto(f"{live_server}/logout")  # редирект → /login?logged_out=1
+            page.wait_for_load_state()
+            page.wait_for_timeout(500)
+
+            assert (
+                page.evaluate(f"localStorage.getItem('{self.KEY}')") is None
+            ), "logged_out=1 должен очищать сохранённый токен"
+            assert "/login" in page.url, f"после выхода: {page.url}"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_authorized_user_not_shown_login_form(self, browser, live_server, app):
+        """Авторизованного /login редиректит в раздел — форма не мелькает."""
+        from config import ADMIN_TOKEN
+
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            page.goto(f"{live_server}/login")
+            page.wait_for_load_state()
+            page.wait_for_timeout(500)
+
+            assert "/admin" in page.url, f"авторизованного увело с /login: {page.url}"
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
+    def test_failed_login_does_not_loop(self, browser, live_server, app):
+        """Неверный сохранённый токен: авто-вход не зациклится (одна попытка)."""
+        context, page, page_errors = _new_session(browser, DESKTOP)
+        try:
+            page.goto(f"{live_server}/login")
+            page.evaluate(f"localStorage.setItem('{self.KEY}', 'EXPIRED-TOKEN')")
+            page.goto(f"{live_server}/login")
+            page.wait_for_load_state()
+            page.wait_for_timeout(1500)
+
+            assert "/login" in page.url, "остаёмся на странице логина"
+            html = page.get_by_text("Неверный токен").count()
+            assert html >= 1, "показывается ошибка неверного токена"
             assert page_errors == [], f"JS-ошибки: {page_errors}"
         finally:
             context.close()

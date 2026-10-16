@@ -26,6 +26,20 @@ def _start_session(**values: object) -> None:
     session.update(values)
 
 
+def _already_logged_in_redirect():
+    """Авторизованного сразу отправляем в его раздел, а не на логин-форму.
+
+    Иначе авто-вход (auth-remember.js) перехватывает ручную смену аккаунта:
+    при живой сессии /login молча перелогинил бы сохранённым токеном.
+    Смена аккаунта: «Выйти» (он же чистит сохранённый токен) → вход заново.
+    """
+    if session.get("is_admin"):
+        return redirect(url_for("admin.dashboard"))
+    if session.get("user_id"):
+        return redirect(url_for("user.dashboard"))
+    return None
+
+
 def _client_ip() -> str:
     return request.remote_addr or "-"
 
@@ -55,6 +69,10 @@ def _log_login_failed(method: str, reason: str, secret: str = "") -> None:
 @auth_bp.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def unified_login():
+    if request.method == "GET":
+        logged_in = _already_logged_in_redirect()
+        if logged_in is not None:
+            return logged_in
     if request.method == "POST":
         token = request.form.get("token", "").strip()
 
@@ -86,12 +104,18 @@ def unified_login():
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("auth.unified_login"))
+    # logged_out=1: auth-remember.js очищает сохранённый токен и не авто-логинит —
+    # иначе прямой переход на /logout (без клика по ссылке) снова вошёл бы молча.
+    return redirect(url_for("auth.unified_login", logged_out=1))
 
 
 @auth_bp.route("/admin/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def admin_login():
+    if request.method == "GET":
+        logged_in = _already_logged_in_redirect()
+        if logged_in is not None:
+            return logged_in
     if request.method == "POST":
         password = request.form.get("password", "")
         if _secret_equals(password, ADMIN_PASSWORD):
@@ -108,6 +132,10 @@ def admin_login():
 @auth_bp.route("/admin/token_login", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def admin_token_login():
+    if request.method == "GET":
+        logged_in = _already_logged_in_redirect()
+        if logged_in is not None:
+            return logged_in
     if request.method == "POST":
         token = request.form.get("token", "").strip()
         if _secret_equals(token, ADMIN_TOKEN):
@@ -122,4 +150,4 @@ def admin_token_login():
 @auth_bp.route("/admin/logout")
 def admin_logout():
     session.clear()
-    return redirect(url_for("auth.admin_login"))
+    return redirect(url_for("auth.admin_login", logged_out=1))
