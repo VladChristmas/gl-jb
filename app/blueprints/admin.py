@@ -6,7 +6,7 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,14 +28,15 @@ from sqlalchemy import func
 
 from app.constants import PHOTO_REQUIRED_TOPICS, ROLE_ADMIN, ROLE_COURIER, ROLE_LABELS, USER_ROLES
 from app.extensions import csrf, db, limiter
-from app.models import ImportMapping, User
+from app.models import Complaint, ImportMapping, Order, Photo, User
 from app.services.audit_service import AuditService
 from app.services.complaint_service import ComplaintService
-from app.services.dashboard_service import DashboardService
+from app.services.dashboard_service import DashboardService, _photo_required_clause
+from app.services.data_quality_service import DataQualityService
 from app.services.email_service import EmailService
 from app.services.import_service import ImportService
 from app.services.notification_service import NotificationService
-from app.services.order_service import OrderService, split_description
+from app.services.order_service import OrderService, date_range_bounds, split_description
 from app.services.photo_service import PhotoService
 from app.services.rating_service import RatingService
 from app.services.user_service import UserService
@@ -237,6 +238,8 @@ def dashboard():
     # Initial notifications for server-side render (client will poll for updates)
     notifications = NotificationService.get_notifications(limit=10)
 
+    current_week_monday = date.today() - timedelta(days=date.today().weekday())
+
     return render_template(
         "admin_dashboard.html",
         stats=stats,
@@ -244,6 +247,7 @@ def dashboard():
         period=period,
         date_from=date_from,
         date_to=date_to,
+        current_week_monday=current_week_monday,
     )
 
 
@@ -413,6 +417,149 @@ def complaints():
         mirror_only_count=mirror_only,
         total_complaints=pagination.total,
     )
+
+
+@admin_bp.route("/attention")
+@admin_required
+def attention():
+    """Центр внимания: единый список операционных проблем.
+
+    Показывает заказы без фото, открытые жалобы, проблемы данных и
+    другие нарушения, определённые по существующим данным.
+    """
+    period = request.args.get("period", "", type=str)
+    date_from = request.args.get("date_from", "", type=str)
+    date_to = request.args.get("date_to", "", type=str)
+    if period not in PERIOD_VALUES:
+        period = ""
+
+    start, end = date_range_bounds(date_from, date_to, period)
+
+    problems = []
+
+    # 1. Заказы без обязательных фото
+    pending_query = (
+        db.session.query(Order, User)
+        .join(User, Order.user_id == User.id)
+        .outerjoin(Photo, Photo.order_id == Order.id)
+        .filter(Photo.id.is_(None), _photo_required_clause())
+    )
+    if start:
+        pending_query = pending_query.filter(Order.created_at >= start)
+    if end:
+        pending_query = pending_query.filter(Order.created_at < end)
+    pending_orders = pending_query.order_by(Order.created_at.desc()).limit(100).all()
+
+    # Предварительный подсчёт фото для всех заказов в problemaх (избегаем N+1)
+    all_order_ids = {o.id for o, _ in pending_orders}
+    if all_order_ids:
+        photo_counts = dict(
+            db.session.query(Photo.order_id, func.count(Photo.id))
+            .filter(Photo.order_id.in_(all_order_ids))
+            .group_by(Photo.order_id)
+            .all()
+        )
+    else:
+        photo_counts = {}
+
+    for order, user in pending_orders:
+        order.photos_count = photo_counts.get(order.id, 0)
+        problems.append(
+            {
+                "type": "no_photos",
+                "severity": "warning",
+                "title": "Заказ без обязательных фото",
+                "order": order,
+                "user": user,
+                "description": "Для заказа требуется фото-подтверждение, но оно не загружено.",
+                "action": url_for("admin.edit_order", order_id=order.id),
+                "action_label": "Открыть заказ",
+            }
+        )
+
+    # 2. Открытые жалобы
+    from app.services.complaint_service import ComplaintService
+
+    open_complaints_query = ComplaintService.build_complaints_query(
+        status="открыта",
+        date_from=date_from,
+        date_to=date_to,
+        period=period,
+    )
+    open_complaints = open_complaints_query.order_by(Complaint.created_at.desc()).limit(100).all()
+
+    all_order_ids = {o.id for _, o, _ in open_complaints}
+    if all_order_ids:
+        photo_counts = dict(
+            db.session.query(Photo.order_id, func.count(Photo.id))
+            .filter(Photo.order_id.in_(all_order_ids))
+            .group_by(Photo.order_id)
+            .all()
+        )
+    else:
+        photo_counts = {}
+
+    for complaint, order, user in open_complaints:
+        order.photos_count = photo_counts.get(order.id, 0)
+        problems.append(
+            {
+                "type": "open_complaint",
+                "severity": "danger",
+                "title": "Открытая жалоба",
+                "order": order,
+                "user": user,
+                "complaint": complaint,
+                "description": complaint.text or "—",
+                "action": url_for("admin.complaint_detail", complaint_id=complaint.id),
+                "action_label": "Открыть жалобу",
+            }
+        )
+
+    # 3. Жалобы только в зеркале (не гидратированы)
+    mirror_only = ComplaintService.mirror_only_count()
+    if mirror_only > 0:
+        mirror_orders = (
+            db.session.query(Order)
+            .filter(
+                Order.complaint_text.isnot(None),
+                Order.complaint_text != "",
+                ~Order.complaints.any(),
+            )
+            .limit(100)
+            .all()
+        )
+        for order in mirror_orders:
+            problems.append(
+                {
+                    "type": "mirror_only",
+                    "severity": "info",
+                    "title": "Жалоба только в зеркале",
+                    "order": order,
+                    "user": order.user,
+                    "description": "Жалоба записана только в поле Order.complaint_text, строк Complaint нет.",
+                    "action": url_for("admin.edit_order", order_id=order.id),
+                    "action_label": "Открыть заказ",
+                }
+            )
+
+    # Сортировка: сначала danger, потом warning, потом info
+    severity_order = {"danger": 0, "warning": 1, "info": 2}
+    problems.sort(key=lambda p: severity_order.get(p["severity"], 99))
+
+    return render_template(
+        "admin_attention.html",
+        problems=problems,
+        period=period,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@admin_bp.route("/data_quality")
+@admin_required
+def data_quality():
+    result = DataQualityService.run()
+    return render_template("admin_data_quality.html", result=result)
 
 
 @admin_bp.route("/complaints/export_excel")
