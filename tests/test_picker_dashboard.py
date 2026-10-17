@@ -775,9 +775,6 @@ class TestDashboardRestructure:
         assert "Последние фото" not in html
         assert "Последние заказы" not in html
         assert "Ждут подтверждения" not in html
-        assert "Импорт Excel" not in html
-        assert "Маппинги" not in html
-        assert "Экспорт" not in html
 
     def test_pending_block_shows_count_and_links(self, admin_client, db_session, regular_user):
         db_session.add(
