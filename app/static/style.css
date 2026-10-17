@@ -1565,10 +1565,13 @@ textarea:focus-visible,
     /* Тач-цели >= 44px (WCAG 2.5.5) */
     .chat-publish-btn,
     .chat-delete-btn {
-        min-height: 44px;
+        min-height: 48px !important;
+        height: auto !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        box-sizing: border-box;
+        padding: 12px 24px;
     }
 }
 
