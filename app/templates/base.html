@@ -14,7 +14,7 @@
     {# Версия ассетов: синхронизирована с CACHE_NAME в sw.js. Менять при
        каждом деплое, иначе Service Worker (staleWhileRevalidate) отдаёт
        старый CSS/JS вместе с новым HTML — рассинхрон ломает вёрстку. #}
-    {% set asset_v = '10' %}
+    {% set asset_v = '11' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_v) }}">
     <script>
     // Apply saved theme before first paint (no flash)

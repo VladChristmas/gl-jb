@@ -1,4 +1,4 @@
-const ASSET_VERSION = '10';
+const ASSET_VERSION = '11';
 const CACHE_NAME = 'gl_jb-v' + ASSET_VERSION;
 const STATIC_ASSETS = [
   '/static/manifest.json',
