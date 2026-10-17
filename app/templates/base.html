@@ -84,9 +84,13 @@
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
             <span>Главная</span>
         </a>
-        <a href="{{ url_for('admin.orders') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.orders' %} is-active{% endif %}">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
-            <span>Заказы</span>
+        <a href="{{ url_for('admin.complaints') }}" class="bottom-nav-item{% if complaints_active %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.4" fill="currentColor"/></svg>
+            <span>Заказы и проблемы</span>
+        </a>
+        <a href="{{ url_for('admin.pickers') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.pickers' %} is-active{% endif %}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/></svg>
+            <span>Сборщики</span>
         </a>
         <a href="{{ url_for('admin.couriers') }}" class="bottom-nav-item{% if nav_endpoint in ('admin.couriers', 'admin.courier_detail') %} is-active{% endif %}">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 3 14.6 8.6 21 9.3 16.5 13.4 17.8 20 12 16.8 6.2 20 7.5 13.4 3 9.3 9.4 8.6"/></svg>
@@ -102,8 +106,7 @@
                 <span>Ещё</span>
             </summary>
             <div class="bottom-nav-menu">
-                <a href="{{ url_for('admin.complaints') }}">Заказы и проблемы</a>
-                <a href="{{ url_for('admin.pickers') }}">Сборщики</a>
+                <a href="{{ url_for('admin.orders') }}">Заказы</a>
                 <a href="{{ url_for('admin.operational_analysis') }}">Опер. анализ</a>
                 <a href="{{ url_for('admin.photo_control') }}">Фото</a>
                 <a href="{{ url_for('admin.users') }}">Управление</a>
