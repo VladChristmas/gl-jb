@@ -5,16 +5,19 @@
 {% block content %}
 <header class="page-header">
     <h1>Жалобы</h1>
-    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад</a>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад к дашборду</a>
 </header>
 
-<form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
-    <input type="hidden" name="status" value="{{ status }}">
-    <div class="form-group" style="min-width: 150px;">
+<!-- Filters -->
+<form method="get" class="form-inline" style="margin-bottom: var(--spacing-lg); gap: var(--space-md); flex-wrap: wrap;">
+
+    
+    <div class="form-group" style="flex: 1; min-width: 200px;">
         <label for="search">Поиск</label>
         <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа или текст жалобы" autocomplete="off">
     </div>
-    <div class="form-group" style="min-width: 140px;">
+    
+    <div class="form-group" style="min-width: 160px;">
         <label for="status_select">Статус</label>
         <select id="status_select" name="status" onchange="this.form.submit();">
             <option value="" {% if status == '' %}selected{% endif %}>Все статусы</option>
@@ -23,7 +26,8 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 140px;">
+    
+    <div class="form-group" style="min-width: 160px;">
         <label for="courier">Курьер</label>
         <select id="courier" name="courier">
             <option value="">Все курьеры</option>
@@ -32,45 +36,53 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 120px;">
+    
+    <div class="form-group" style="min-width: 140px;">
         <label for="date_from">Период с</label>
         <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
     </div>
-    <div class="form-group" style="min-width: 120px;">
+    
+    <div class="form-group" style="min-width: 140px;">
         <label for="date_to">по</label>
         <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
     </div>
-    <button type="submit" class="btn btn-secondary">Фильтровать</button>
-    <span class="form-group" style="display: flex; gap: 6px;">
-        <a href="{{ url_for('admin.complaints', period='day', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}active{% endif %}">День</a>
-        <a href="{{ url_for('admin.complaints', period='week', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}active{% endif %}">Неделя</a>
-        <a href="{{ url_for('admin.complaints', period='month', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}active{% endif %}">Месяц</a>
-    </span>
-    {% if search or status or courier or date_from or date_to or period %}
-    <a href="{{ url_for('admin.complaints') }}" class="btn btn-secondary">Сбросить</a>
-    {% endif %}
+    
+    <div style="display: flex; gap: var(--space-sm); align-items: flex-end;">
+        <button type="submit" class="btn btn-primary">Фильтровать</button>
+        {% if search or status or courier or date_from or date_to or period %}
+        <a href="{{ url_for('admin.complaints') }}" class="btn btn-secondary">Сбросить</a>
+        {% endif %}
+    </div>
+    
+    <div style="display: flex; gap: var(--space-sm); align-items: flex-end;">
+        <a href="{{ url_for('admin.complaints', period='day', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}is-active{% endif %}">День</a>
+        <a href="{{ url_for('admin.complaints', period='week', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}is-active{% endif %}">Неделя</a>
+        <a href="{{ url_for('admin.complaints', period='month', search=search, status=status, courier=courier) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}is-active{% endif %}">Месяц</a>
+    </div>
+    
     <a href="{{ url_for('admin.export_complaints_excel', search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary" title="Скачать текущую выборку в Excel">⬇ Экспорт</a>
 </form>
 
-<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+<!-- Summary -->
+<div class="card" style="margin-bottom: var(--spacing-lg); padding: var(--space-md);">
     <strong>Жалоб по текущему фильтру:</strong> {{ total_complaints }}
     {% if mirror_only_count %}
     &nbsp;·&nbsp;
-    <a href="{{ url_for('admin.orders', complaint_filter='with_complaints') }}"
-       title="Заказы, у которых жалобы записаны только в зеркало Order.complaint_* (легаси-данные): строки Complaint появятся при следующем импорте.">
+    <a href="{{ url_for('admin.orders', complaint_filter='with_complaints') }}" title="Заказы, у которых жалобы записаны только в зеркало Order.complaint_* (легаси-данные): строки Complaint появятся при следующем импорте.">
         Заказов с жалобами (включая легаси): {{ mirror_only_count }}
     </a>
     {% endif %}
 </div>
 
+<!-- Top Couriers -->
 {% if courier_top %}
-<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+<div class="card" style="margin-bottom: var(--spacing-lg); padding: var(--space-md);">
     <strong>Топ курьеров по жалобам</strong>
-    <small style="color: var(--text-secondary);"> (за текущий период, только отображение)</small>
+    <small style="color: var(--text-secondary); display: block; margin-top: 4px;">За текущий период, только отображение</small>
     <div class="table-wrap" style="margin-top: 8px;">
     <table class="table">
         <thead>
-            <tr><th>Курьер</th><th>Жалоб</th></tr>
+            <tr><th>Курьер</th><th class="col-id">Жалоб</th></tr>
         </thead>
         <tbody>
             {% for courier_fio, count in courier_top %}
@@ -78,14 +90,17 @@
                 <td>
                     <a href="{{ url_for('admin.complaints', courier=courier_fio, search=search, status=status, date_from=date_from, date_to=date_to, period=period) }}">{{ courier_fio }}</a>
                 </td>
-                <td>{{ count }}</td>
+                <td class="col-id">{{ count }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     </div>
+</div>
 {% endif %}
 
+<!-- Complaints List -->
+{% if rows %}
 <div class="complaints-list">
     {% for row in rows %}
     <article class="complaint-card" data-complaint-id="{{ row.complaint.id }}">
@@ -153,8 +168,11 @@
             {% endif %}
         </footer>
     </article>
-    {% else %}
-    <div class="empty-state" style="padding: 2rem; text-align: center;">
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 48px 24px; text-align: center;">
         <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 64px; height: 64px; margin-bottom: 1rem; color: var(--text-secondary);">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -164,10 +182,10 @@
         <div class="empty-state-title">Жалоб нет</div>
         <div class="empty-state-text">Нет жалоб, подходящих под текущие фильтры. Измените фильтры или нажмите «Сбросить».</div>
     </div>
-    {% endfor %}
 </div>
+{% endif %}
 
-{% if pagination.pages > 1 %}
+{% if pagination and pagination.pages > 1 %}
 <nav class="pagination">
     {% if pagination.has_prev %}
         <a href="{{ url_for('admin.complaints', page=pagination.prev_num, search=search, status=status, courier=courier, date_from=date_from, date_to=date_to, period=period) }}" class="btn btn-secondary btn-sm">← Назад</a>
@@ -178,7 +196,6 @@
     {% endif %}
 </nav>
 {% endif %}
-
 {% endblock %}
 
 {% block extra_scripts %}
