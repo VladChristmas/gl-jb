@@ -234,6 +234,48 @@ class TestMobileFlow:
         finally:
             context.close()
 
+    def test_pending_dashboard_time_stays_horizontal_in_card_view(
+        self, browser, live_server, db_session, regular_user
+    ):
+        """Блок «Ожидают фото»: время не должно рваться по цифрам в столбик.
+
+        Регрессия P2-UX-1: `width:1%` для `td[class*="col-"]` сжимало ячейку
+        времени в карточном виде до ~28px, и `overflow-wrap:anywhere` ломало
+        «17.10.2026 18:45» по одной цифре.
+        """
+        from app.models import Order
+        from config import ADMIN_TOKEN
+
+        db_session.add(
+            Order(
+                user_id=regular_user.id,
+                order_number="E2E-PEND-TIME",
+                address="Адрес",
+                courier_fio="Иванов Иван Иванович",
+                delivered_at="17.10.2026 18:45",
+                complaint_text="Товар побит/вскрыт",
+            )
+        )
+        db_session.commit()
+
+        context, page, page_errors = _new_session(browser, {"width": 320, "height": 800})
+        try:
+            _login(page, live_server, ADMIN_TOKEN, "/admin")
+            page.goto(f"{live_server}/admin")
+
+            cell = page.locator("table.is-cards td.col-date").first
+            assert cell.is_visible(), "ячейка времени в блоке «Ожидают фото» не найдена"
+
+            box = cell.bounding_box()
+            assert box and box["width"] > 100, f"ячейка времени сжата: {box}"
+            assert box["height"] < 60, f"время переносится в столбик: {box}"
+            assert "17.10.2026 18:45" in cell.inner_text()
+
+            _assert_no_horizontal_scroll(page, "Блок «Ожидают фото»@320")
+            assert page_errors == [], f"JS-ошибки: {page_errors}"
+        finally:
+            context.close()
+
     def test_login_page_fits_mobile_viewport(self, browser, live_server):
         context, page, page_errors = _new_session(browser, MOBILE)
         try:

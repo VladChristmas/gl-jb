@@ -648,6 +648,18 @@ textarea:focus-visible,
         content: none;
     }
 
+    /* P2-UX-1 держит ID/даты узкими (width:1%) для горизонтальной таблицы, но
+       в карточном виде это сжимает значение колонки (напр. время
+       «17.10.2026 18:45») до ~1% ширины, а overflow-wrap:anywhere рвёт его по
+       одной цифре в столбик. В карточках колонка занимает всю ширину, а перенос
+       идёт по словам. */
+    .table-wrap table.is-cards td[class*="col-"] {
+        width: auto;
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+
     .table-wrap table.is-cards tr td:last-child {
         border-bottom: none;
     }

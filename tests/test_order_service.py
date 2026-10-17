@@ -33,7 +33,9 @@ class TestOrderService:
             )
         )
         db_session.commit()
-        pagination, orders = OrderService.get_all_orders(page=1, per_page=100)
+        # per_page с запасом: session-scoped in-memory БД накапливает заказы
+        # из других тестов, при per_page=100 len(numbers) упирался в лимит.
+        pagination, orders = OrderService.get_all_orders(page=1, per_page=1000)
         numbers = [item["order"].order_number for item in orders]
         assert "VISIBLE-1" in numbers
         assert "TEST-001" in numbers
