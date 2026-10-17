@@ -11,7 +11,11 @@
     <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <title>{% block title %}Фото заказов{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {# Версия ассетов: синхронизирована с CACHE_NAME в sw.js. Менять при
+       каждом деплое, иначе Service Worker (staleWhileRevalidate) отдаёт
+       старый CSS/JS вместе с новым HTML — рассинхрон ломает вёрстку. #}
+    {% set asset_v = '10' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_v) }}">
     <script>
     // Apply saved theme before first paint (no flash)
     (function () {
@@ -21,9 +25,9 @@
         document.documentElement.setAttribute('data-theme', t);
     })();
     </script>
-    <script src="{{ url_for('static', filename='utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='install.js') }}"></script>
-    <script src="{{ url_for('static', filename='auth-remember.js') }}"></script>
+    <script src="{{ url_for('static', filename='utils.js', v=asset_v) }}"></script>
+    <script src="{{ url_for('static', filename='install.js', v=asset_v) }}"></script>
+    <script src="{{ url_for('static', filename='auth-remember.js', v=asset_v) }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body{% if session.is_admin or session.user_id %} class="has-bottom-nav"{% endif %}>
