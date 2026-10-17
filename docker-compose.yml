@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: gl_jb
       POSTGRES_USER: gl_jb_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -44,7 +44,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://gl_jb_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/gl_jb
+      - DATABASE_URL=postgresql://gl_jb_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/gl_jb
       - RATELIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       postgres:
