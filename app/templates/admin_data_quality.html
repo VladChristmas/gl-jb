@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Контроль качества данных{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('admin.dashboard') }}" class="btn-back">‹ Назад</a>
+<div class="page-header">
+    <h1>Контроль качества данных</h1>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom: 12px;">Сводка</h2>
+    <div class="kpi-grid" style="margin-bottom: 0;">
+        {% for key, val in result.counts.items() %}
+        <div class="kpi-card">
+            <div class="kpi-value">{{ val }}</div>
+            <div class="kpi-label">{{ key }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card" style="margin-top: 16px;">
+    <h2 style="margin-bottom: 12px;">Найденные проблемы ({{ result.findings|length }})</h2>
+    {% if result.findings %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Категория</th>
+                    <th>Объект</th>
+                    <th>Причина</th>
+                    <th>Данные</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in result.findings %}
+                <tr>
+                    <td>{{ f.category }}</td>
+                    <td>{{ f.object }}</td>
+                    <td>{{ f.reason }}</td>
+                    <td>{{ f.data }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 24px;">
+        <div class="empty-state-text">Проблем не найдено.</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

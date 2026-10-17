@@ -1565,10 +1565,13 @@ textarea:focus-visible,
     /* Тач-цели >= 44px (WCAG 2.5.5) */
     .chat-publish-btn,
     .chat-delete-btn {
-        min-height: 44px;
+        min-height: 48px !important;
+        height: auto !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        box-sizing: border-box;
+        padding: 12px 24px;
     }
 }
 
@@ -3868,4 +3871,11 @@ textarea:focus-visible,
     .modal-actions .btn {
         width: 100%;
     }
+}
+
+/* ===== Mobile audit: minor responsive hardening (320-430) ===== */
+@media (max-width: 480px) {
+    img, video, svg, canvas { max-width: 100%; height: auto; }
+    .container { padding: 12px; }
+    .btn, button { min-height: 40px; }
 }

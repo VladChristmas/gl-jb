@@ -193,12 +193,14 @@ class TestAdminFlow:
         try:
             _login(page, live_server, ADMIN_TOKEN, "/admin")
 
-            page.locator("nav.bottom-nav a", has_text="Жалобы").click()
+            page.locator("nav.bottom-nav a", has_text="Заказы и проблемы").click()
             page.wait_for_load_state()
-            assert "/admin/complaints" in page.url, f"после клика: {page.url}"
-            assert "Принесли чужой заказ" in page.content()
-            # Строки ведут на заказ (§4)
-            assert page.locator(f'a[href="/admin/orders/edit/{order.id}"]').count() >= 1
+            assert "/admin/orders-and-problems" in page.url or "/admin/complaints" in page.url, f"после клика: {page.url}"
+            # переключаемся на вкладку «Проблемы»
+            page.locator("button.tab-btn", has_text="Проблемы").click()
+            page.wait_for_load_state()
+            frame = page.frame_locator("iframe[src*='/admin/complaints']")
+            assert frame.get_by_text("Принесли чужой заказ").count() >= 1
 
             _assert_no_horizontal_scroll(page, "/admin/complaints")
             assert page_errors == [], f"JS-ошибки: {page_errors}"

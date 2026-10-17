@@ -91,16 +91,16 @@
         <span class='kpi-hint'>неделя</span>
     </a>
 
-    <a href='#attention' class='kpi-card kpi-attention' role='listitem'>
+    <a href='{{ url_for("admin.attention") }}' class='kpi-card kpi-attention' role='listitem'>
         <span class='kpi-value'>{{ stats.attention_total }}</span>
         <span class='kpi-label'>Проблемы</span>
         <span class='kpi-hint'>требуют внимания</span>
     </a>
 </div>
 
-<!-- Attention Block -->
-<section id='attention' class='attention-section' aria-label='Требует внимания'>
-    <h2>Требуют внимания</h2>
+<!-- Attention Section -->
+<section class='attention-section' aria-label='Требует внимания'>
+    <h2 class='page-header-title'>Требуют внимания</h2>
 
     {% set has_attention = stats.pending_count > 0 or stats.open_complaints_count > 0 or stats.import_errors_count > 0 or stats.mirror_only_count > 0 %}
 
@@ -147,13 +147,6 @@
 
 <!-- Analytics -->
 <div class='analytics-grid'>
-    {# Макрос спарклайна: при одной точке рисуем круг (P3-UX-2: иначе график
-       выглядел пустым), при нескольких — ломаную (P3-UX-3: жалобы по дням).
-
-       ВАЖНО: накопитель точек обязательно через namespace(). Обычный
-       {% set points_str = ... %} внутри {% for %} живёт только в scope цикла
-       и после цикла снова равен '' — из-за этого polyline не рендерился
-       вообще, и «Заказы/Жалобы по дням» показывались пустыми SVG. #}
     {% macro sparkline(items, color) -%}
         {% set count_max = items | map(attribute='count') | max %}
         {% set ns = namespace(points='') %}
@@ -206,14 +199,16 @@
 
 <!-- Completion Rate -->
 <div class='card'>
-    <h2>Общий процент выполнения</h2>
+    <div class='page-header' style='margin-bottom: var(--spacing);'>
+        <h2 style='margin: 0;'>Общий процент выполнения</h2>
+    </div>
     <div class='progress-bar-container'>
         <div class='progress-bar' style='width: {{ stats.completion_rate }}%;'>
             <span>{{ stats.completion_rate }}%</span>
         </div>
     </div>
     <p class='help-text' style='margin-top: 8px;'>
-        <a href='{{ url_for("admin.orders", photo_filter="with_photos", period=period, date_from=date_from, date_to=date_to) }}' class='kpi-card-link'>
+        <a href='{{ url_for("admin.orders", photo_filter="with_photos", period=period, date_from=date_from, date_to=date_to) }}'>
             {{ stats.orders_with_photos }}
         </a> из {{ stats.orders_count }} заказов подтверждены фото
     </p>
@@ -221,25 +216,23 @@
 
 <!-- Orders awaiting photo confirmation -->
 <div class='card'>
-    <div class='page-header' style='margin-bottom: 8px;'>
+    <div class='page-header' style='margin-bottom: var(--spacing);'>
         <h2 style='margin: 0;'>Ожидают фото</h2>
-<span class='badge badge-warning' id='pending-count' style='font-size: 16px; padding: 6px 14px;'>
-        {{ stats.pending_count }}
-    </span>
+        <span class='badge badge-warning' id='pending-count'>{{ stats.pending_count }}</span>
     </div>
     <p class='help-text' style='margin-top: 0;'>
-        Заказы с подтемами, по которым нужно фото-подтверждение. Нажмите на заказ, чтобы открыть подробную информацию.
+        Заказы с подтемами, по которым нужно фото-подтверждение.
     </p>
     {% if stats.pending_orders %}
     <div class='table-wrap'>
     <table class='table'>
         <thead>
             <tr>
-                <th>ФИО курьера</th>
+                <th class='col-id'>Курьер</th>
                 <th>Адрес</th>
-                <th>Время</th>
+                <th class='col-date'>Время</th>
                 <th>Подтема</th>
-                <th>Заказ</th>
+                <th class='col-id'>Заказ</th>
             </tr>
         </thead>
         <tbody>
@@ -247,7 +240,7 @@
             <tr>
                 <td><strong>{{ order.courier_fio or user.fio }}</strong></td>
                 <td>{{ order.address or '—' }}</td>
-                <td>{{ order.delivered_at or '—' }}</td>
+                <td class='col-date'>{{ order.delivered_at or '—' }}</td>
                 <td>
                     <small style='color: var(--text-secondary);'>
                         {{ order.complaint_text[:60] }}{% if order.complaint_text|length > 60 %}…{% endif %}
@@ -279,7 +272,7 @@
 <div class='dashboard-grid'>
     <!-- Best Couriers -->
     <div class='card'>
-        <div class='page-header' style='margin-bottom: 8px;'>
+        <div class='page-header' style='margin-bottom: var(--spacing);'>
             <h2 style='margin: 0;'>Лучшие курьеры</h2>
             <a href='{{ url_for("admin.couriers", week=current_week_monday) }}' class='btn btn-sm btn-secondary'>Все →</a>
         </div>
@@ -308,7 +301,7 @@
 
     <!-- Best Pickers -->
     <div class='card'>
-        <div class='page-header' style='margin-bottom: 8px;'>
+        <div class='page-header' style='margin-bottom: var(--spacing);'>
             <h2 style='margin: 0;'>Лучшие сборщики</h2>
             <a href='{{ url_for("admin.pickers") }}' class='btn btn-sm btn-secondary'>Все →</a>
         </div>
@@ -334,10 +327,6 @@
         {% else %}
         <div class='empty-state' style='padding: 24px;'>
             <div class='empty-state-text'>Нет данных о сборщиках</div>
-            <p class='empty-state-hint' style='margin: 8px 0 0; font-size: 13px; color: var(--text-secondary);'>
-                Данные берутся из импорта — нужна колонка «Сборщик» в файле.
-                <a href='{{ url_for("admin.import_mappings") }}'>Настройки импорта</a>
-            </p>
         </div>
         {% endif %}
     </div>

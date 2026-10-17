@@ -5,16 +5,19 @@
 {% block content %}
 <header class="page-header">
     <h1>Все заказы</h1>
-    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад</a>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад к дашборду</a>
 </header>
 
-<form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+<!-- Filters -->
+<form method="get" class="form-inline" style="margin-bottom: var(--spacing-lg); gap: var(--space-md); flex-wrap: wrap;">
     <input type="hidden" name="period" value="{{ period }}">
-    <div class="form-group" style="min-width: 250px;">
+    
+    <div class="form-group" style="flex: 1; min-width: 200px;">
         <label for="search">Поиск</label>
         <input type="text" id="search" name="search" value="{{ search }}" placeholder="Номер заказа, описание, ФИО" autocomplete="off">
     </div>
-    <div class="form-group" style="min-width: 200px;">
+    
+    <div class="form-group" style="min-width: 160px;">
         <label for="user_id">Пользователь</label>
         <select id="user_id" name="user_id">
             <option value="">Все пользователи</option>
@@ -23,7 +26,8 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 200px;">
+    
+    <div class="form-group" style="min-width: 160px;">
         <label for="courier">Курьер</label>
         <select id="courier" name="courier">
             <option value="">Все курьеры</option>
@@ -32,16 +36,18 @@
             {% endfor %}
         </select>
     </div>
-    <div class="form-group" style="min-width: 180px;">
+    
+    <div class="form-group" style="min-width: 150px;">
         <label for="photo_filter">Статус фото</label>
         <select id="photo_filter" name="photo_filter">
             <option value="" {% if photo_filter == '' %}selected{% endif %}>Все заказы</option>
-            <option value="with_photos" {% if photo_filter == 'with_photos' %}selected{% endif %}>✅ С фото (подтверждены)</option>
-            <option value="without_photos" {% if photo_filter == 'without_photos' %}selected{% endif %}>⏳ Ожидают фото</option>
-            <option value="photo_relevant" {% if photo_filter == 'photo_relevant' %}selected{% endif %}>С фото и ждущие фото</option>
+            <option value="with_photos" {% if photo_filter == 'with_photos' %}selected{% endif %}>✅ С фото</option>
+            <option value="without_photos" {% if photo_filter == 'without_photos' %}selected{% endif %}>⏳ Без фото</option>
+            <option value="photo_relevant" {% if photo_filter == 'photo_relevant' %}selected{% endif %}>С фото и ждущие</option>
         </select>
     </div>
-    <div class="form-group" style="min-width: 180px;">
+    
+    <div class="form-group" style="min-width: 150px;">
         <label for="complaint_filter">Жалобы</label>
         <select id="complaint_filter" name="complaint_filter">
             <option value="" {% if complaint_filter == '' %}selected{% endif %}>Все заказы</option>
@@ -49,114 +55,103 @@
             <option value="without_complaints" {% if complaint_filter == 'without_complaints' %}selected{% endif %}>Без жалоб</option>
         </select>
     </div>
-    <div class="form-group" style="min-width: 150px;">
+    
+    <div class="form-group" style="min-width: 140px;">
         <label for="date_from">Период с</label>
         <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
     </div>
-    <div class="form-group" style="min-width: 150px;">
+    
+    <div class="form-group" style="min-width: 140px;">
         <label for="date_to">по</label>
         <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
     </div>
-    <button type="submit" class="btn btn-secondary">Фильтровать</button>
-    <span class="form-group" style="display: flex; gap: 6px;">
-        <a href="{{ url_for('admin.orders', period='day', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}active{% endif %}">День</a>
-        <a href="{{ url_for('admin.orders', period='week', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}active{% endif %}">Неделя</a>
-        <a href="{{ url_for('admin.orders', period='month', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}active{% endif %}">Месяц</a>
-    </span>
-    {% if search or user_filter or photo_filter or date_from or date_to or period or courier or complaint_filter %}
-    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Сбросить</a>
-    {% endif %}
+    
+    <div style="display: flex; gap: var(--space-sm); align-items: flex-end; min-width: 140px;">
+        <button type="submit" class="btn btn-primary">Фильтровать</button>
+        {% if search or user_filter or photo_filter or date_from or date_to or period or courier or complaint_filter %}
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary">Сбросить</a>
+        {% endif %}
+    </div>
+    
+    <div style="display: flex; gap: var(--space-sm); align-items: flex-end;">
+        <a href="{{ url_for('admin.orders', period='day', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'day' %}is-active{% endif %}">День</a>
+        <a href="{{ url_for('admin.orders', period='week', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'week' %}is-active{% endif %}">Неделя</a>
+        <a href="{{ url_for('admin.orders', period='month', search=search, user_id=user_filter, photo_filter=photo_filter, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary btn-sm {% if period == 'month' %}is-active{% endif %}">Месяц</a>
+    </div>
+    
     <a href="{{ url_for('admin.export_excel', search=search, user_id=user_filter, photo_filter=photo_filter, date_from=date_from, date_to=date_to, period=period, courier=courier, complaint_filter=complaint_filter) }}" class="btn btn-secondary" title="Скачать текущую выборку в Excel">⬇ Экспорт</a>
 </form>
 
-<div class="card" style="margin-bottom: 1rem; padding: 12px 16px;">
+<!-- Summary -->
+<div class="card" style="margin-bottom: var(--spacing-lg); padding: var(--space-md);">
     <strong>Заказов по текущему фильтру:</strong> {{ pagination.total }}
     {% if pagination.total != total_orders %}
     &nbsp;·&nbsp; <strong>Всего заказов в системе:</strong> {{ total_orders }}
     {% endif %}
 </div>
 
+{% if orders %}
 <div class="table-wrap">
-    <table class="table">
-    <thead>
-        <tr>
-            <th class="col-id">№</th>
-            <th>Пользователь</th>
-            <th>Номер заказа</th>
-            <th>Описание</th>
-            <th>Статус</th>
-            <th>Фото</th>
-            <th class="col-date">Создан</th>
-            <th>Действия</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in orders %}
-        <tr>
-            <td class="col-id">{{ item.order.id }}</td>
-            <td>
-                <strong>{{ item.user.fio }}</strong><br>
-                <small><code>{{ item.user.token }}</code></small>
-            </td>
-            <td>{{ item.order.order_number }}</td>
-            <td>{{ item.summary or '—' }}</td>
-            <td>
-                {% if item.photos_count > 0 %}
-                <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-top: -2px;">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    Подтверждено
-                </span>
-                {% else %}
-                <span class="badge badge-warning" style="display: inline-flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: -2px;">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    Ожидает фото
-                </span>
-                {% endif %}
-            </td>
-            <td>
-                <span class="badge">{{ item.photos_count }}</span>
-                {% if item.photos_count > 0 %}
-                <a href="{{ url_for('admin.order_photos', order_id=item.order.id) }}" class="btn btn-sm btn-secondary" style="margin-top: 8px; display: inline-block;">Посмотреть</a>
-                {% endif %}
-            </td>
-            <td class="col-date">{{ item.order.created_at }}</td>
-            <td>
-                <a href="{{ url_for('admin.edit_order', order_id=item.order.id) }}" class="btn btn-sm btn-secondary">Редактировать</a>
-                {% if item.photos_count > 0 %}
-                <form method="post" action="{{ url_for('admin.send_order_email', order_id=item.order.id) }}" class="d-inline" style="margin-left: 4px;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-sm btn-secondary" title="Отправить email с фото">📧 Отправить</button>
-                </form>
-                {% endif %}
-                <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить заказ #{{ item.order.id }}? Все фото будут удалены.', event)">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
-                </form>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="8">
-                <div class="empty-state">
-                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                    </svg>
-                    <div class="empty-state-title">Заказов нет</div>
-                    <div class="empty-state-text">Нет заказов, подходящих под текущие фильтры. Измените фильтры или нажмите «Сбросить».</div>
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <table class="table" id="orders-table">
+        <thead>
+            <tr>
+                <th class="col-id">№</th>
+                <th>Пользователь</th>
+                <th>Номер заказа</th>
+                <th>Описание</th>
+                <th>Статус фото</th>
+                <th class="col-date">Создан</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in orders %}
+            <tr>
+                <td class="col-id">{{ item.order.id }}</td>
+                <td>
+                    <strong>{{ item.user.fio }}</strong><br>
+                    <small style="color: var(--text-tertiary);">{{ item.user.token[:16] }}…</small>
+                </td>
+                <td>{{ item.order.order_number }}</td>
+                <td>{{ item.summary or '—' }}</td>
+                <td>
+                    {% if item.photos_count > 0 %}
+                    <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-top: -2px;">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Подтверждено
+                    </span>
+                    {% else %}
+                    <span class="badge badge-warning" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top: -2px;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Ожидает фото
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="col-date">{{ item.order.created_at }}</td>
+                <td>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('admin.edit_order', order_id=item.order.id) }}" class="btn btn-sm btn-secondary">Редактировать</a>
+                        {% if item.photos_count > 0 %}
+                        <form method="post" action="{{ url_for('admin.send_order_email', order_id=item.order.id) }}" class="d-inline" style="margin-left: 4px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-secondary" title="Отправить email с фото">📧 Отправить</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('admin.delete_order', order_id=item.order.id) }}" class="d-inline" onsubmit="return confirmDelete(this, 'Удалить заказ #{{ item.order.id }}? Все фото будут удалены.', event)">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 {% if pagination.pages > 1 %}
@@ -170,7 +165,20 @@
     {% endif %}
 </nav>
 {% endif %}
-
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 48px 24px;">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <div class="empty-state-title">Заказов нет</div>
+        <div class="empty-state-text">Нет заказов, подходящих под текущие фильтры. Измените фильтры или нажмите «Сбросить».</div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}
