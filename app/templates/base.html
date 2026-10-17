@@ -84,7 +84,7 @@
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
             <span>Главная</span>
         </a>
-        <a href="{{ url_for('admin.complaints') }}" class="bottom-nav-item{% if complaints_active %} is-active{% endif %}">
+        <a href="{{ url_for('admin.orders_and_problems') }}" class="bottom-nav-item{% if nav_endpoint == 'admin.orders_and_problems' %} is-active{% endif %}">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.4" fill="currentColor"/></svg>
             <span>Заказы и проблемы</span>
         </a>

@@ -358,6 +358,12 @@ def courier_detail(fio):
     )
 
 
+@admin_bp.route("/orders-and-problems")
+@admin_required
+def orders_and_problems():
+    return render_template("admin_orders_and_problems.html")
+
+
 @admin_bp.route("/complaints")
 @admin_required
 def complaints():

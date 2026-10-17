@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Центр внимания{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Центр внимания</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Назад к дашборду</a>
+</header>
+
+<p class="help-text" style="margin-bottom: var(--spacing-lg);">
+    Единый список операционных проблем: заказы без фото, открытые жалобы,
+    проблемы данных и другие нарушения, определённые по существующим данным.
+</p>
+
+<!-- Filters -->
+<form method="get" class="form-inline" style="margin-bottom: var(--spacing-lg); flex-wrap: wrap;">
+    <input type="hidden" name="period" value="{{ period }}">
+    <div class="form-group" style="min-width: 140px;">
+        <label for="date_from">Период с</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="form-group" style="min-width: 140px;">
+        <label for="date_to">по</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 120px;">
+        <label style="font-size: 12px; color: var(--text-secondary);"></label>
+        <button type="submit" class="btn btn-primary">Применить</button>
+    </div>
+    <a href="{{ url_for('admin.attention') }}" class="btn btn-secondary">Сбросить</a>
+</form>
+
+{% if problems %}
+<div class="card" style="margin-bottom: var(--spacing-lg); padding: var(--spacing-md);">
+    <strong>Всего проблем:</strong> {{ problems|length }}
+    <span style="float: right;">
+        <span class="badge badge-danger">Критично: {{ problems | selectattr('severity', 'equalto', 'danger') | list | length }}</span>
+        <span class="badge badge-warning">Предупреждение: {{ problems | selectattr('severity', 'equalto', 'warning') | list | length }}</span>
+        <span class="badge badge-info">Информация: {{ problems | selectattr('severity', 'equalto', 'info') | list | length }}</span>
+    </span>
+</div>
+
+<div class="problems-list">
+    {% for problem in problems %}
+    <article class="problem-card" data-type="{{ problem.type }}">
+        <header class="problem-header">
+            <div class="problem-type">
+                <span class="badge badge-{{ problem.severity }}">{{ problem.severity }}</span>
+                <span class="problem-title">{{ problem.title }}</span>
+            </div>
+            <div class="problem-order">
+                <span class="label">Заказ</span>
+                <a href="{{ url_for('admin.edit_order', order_id=problem.order.id) }}">
+                    <strong>{{ problem.order.order_number or '#' ~ problem.order.id }}</strong>
+                    <small>{{ problem.user.fio }}</small>
+                </a>
+            </div>
+        </header>
+
+        <div class="problem-body">
+            <p class="problem-description">{{ problem.description }}</p>
+
+            {% if problem.complaint %}
+            <div class="problem-complaint">
+                <span class="label">Текст жалобы</span>
+                <p>{{ problem.complaint.text }}</p>
+            </div>
+            {% endif %}
+
+            <div class="problem-meta">
+                <div class="meta-item">
+                    <span class="label">Курьер</span>
+                    <span class="value">{{ problem.order.courier_fio or '—' }}</span>
+                </div>
+                {% if problem.order.complaint_text %}
+                <div class="meta-item">
+                    <span class="label">Текст в заказе</span>
+                    <span class="value">{{ problem.order.complaint_text[:100] }}{% if problem.order.complaint_text|length > 100 %}…{% endif %}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <footer class="problem-actions">
+            <a href="{{ problem.action }}" class="btn btn-primary">{{ problem.action_label }}</a>
+            {% if problem.order.photos_count > 0 %}
+            <a href="{{ url_for('admin.order_photos', order_id=problem.order.id) }}" class="btn btn-secondary">Фото</a>
+            {% endif %}
+        </footer>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 48px 24px;">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 64px; height: 64px; margin-bottom: 1rem; color: var(--text-secondary);">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9 12l2 2 4-4"/>
+        </svg>
+        <div class="empty-state-title">Проблем не найдено</div>
+        <div class="empty-state-text">Все заказы имеют необходимые фото, открытых жалоб нет, проблемы данных не обнаружены.</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

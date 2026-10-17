@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Заказы и проблемы{% endblock %}
+{% block content %}
+<div class="container">
+    <h1>Заказы и проблемы</h1>
+    <div class="tabs" role="tablist">
+        <button class="tab-btn is-active" data-tab="orders">Заказы</button>
+        <button class="tab-btn" data-tab="complaints">Проблемы</button>
+    </div>
+    <div class="tab-panel" id="tab-orders">
+        <iframe src="{{ url_for('admin.orders') }}{{ request.query_string and ('?' ~ request.query_string|urlencode) or '' }}" style="width:100%;height:80vh;border:0;"></iframe>
+    </div>
+    <div class="tab-panel" id="tab-complaints" hidden>
+        <iframe src="{{ url_for('admin.complaints') }}" style="width:100%;height:80vh;border:0;"></iframe>
+    </div>
+</div>
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        const tab = btn.dataset.tab;
+        document.getElementById('tab-orders').hidden = tab !== 'orders';
+        document.getElementById('tab-complaints').hidden = tab !== 'complaints';
+    });
+});
+</script>
+{% endblock %}
