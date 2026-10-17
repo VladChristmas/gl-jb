@@ -1,7 +1,8 @@
-const CACHE_NAME = 'gl_jb-v9';
+const ASSET_VERSION = '10';
+const CACHE_NAME = 'gl_jb-v' + ASSET_VERSION;
 const STATIC_ASSETS = [
   '/static/manifest.json',
-  '/static/style.css',
+  '/static/style.css?v=' + ASSET_VERSION,
   '/static/icons/icon-192.png',
 ];
 

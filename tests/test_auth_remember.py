@@ -56,8 +56,12 @@ class TestAuthRememberStatic:
         assert "auth-remember.js" in src
 
     def test_sw_cache_bumped_for_auth_remember_js(self):
+        import re
+
         src = (STATIC / "sw.js").read_text(encoding="utf-8")
-        assert "gl_jb-v9" in src
+        match = re.search(r"ASSET_VERSION\s*=\s*'(\d+)'", src)
+        assert match, "sw.js должен задавать ASSET_VERSION"
+        assert int(match.group(1)) >= 9, "версию кэша SW нужно поднимать при деплое"
 
 
 class TestAuthRememberServer:
